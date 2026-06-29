@@ -130,6 +130,18 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       }),
     );
 
+  const doDelete = (name: string) => {
+    if (!window.confirm(`Delete "${name}" from the server? This can’t be undone.`)) return;
+    run('Delete', () =>
+      withClient(async (c) => {
+        await c.deleteScript(name);
+        setScripts(await c.listScripts());
+        if (baseline?.name === name) setBaseline(null);
+        return { kind: 'ok', text: `Deleted "${name}".` } as Status;
+      }),
+    );
+  };
+
   const startNew = () => {
     if (!confirmReplace('Starting a new script')) return;
     onLoad([]);
@@ -260,6 +272,15 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
                         Activate
                       </button>
                     )}
+                    <button
+                      class="delete-btn"
+                      disabled={busy || s.active}
+                      title={s.active ? 'Activate another script first to delete this one' : `Delete ${s.name}`}
+                      aria-label={`Delete ${s.name}`}
+                      onClick={() => doDelete(s.name)}
+                    >
+                      ✕
+                    </button>
                   </span>
                 </li>
               ))}
