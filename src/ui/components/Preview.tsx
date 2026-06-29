@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 interface Props {
   script: string;
@@ -6,12 +6,16 @@ interface Props {
 
 export function Preview({ script }: Props) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(script);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard may be unavailable (e.g. insecure context); fail quietly.
     }

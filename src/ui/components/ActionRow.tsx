@@ -116,7 +116,7 @@ export function ActionRow({ action, onChange, onRemove, canRemove }: Props) {
         </>
       )}
 
-      <button class="icon-btn" title="Remove action" disabled={!canRemove} onClick={onRemove}>
+      <button class="icon-btn" title="Remove action" aria-label="Remove action" disabled={!canRemove} onClick={onRemove}>
         ✕
       </button>
     </div>

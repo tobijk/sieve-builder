@@ -3,6 +3,7 @@
 // the UI into dist-ext/ui/.
 import * as esbuild from 'esbuild';
 import { cpSync, rmSync } from 'node:fs';
+import { uiBuildOptions } from './esbuild.config.mjs';
 
 const OUT = 'dist-ext';
 
@@ -10,13 +11,8 @@ rmSync(OUT, { recursive: true, force: true });
 cpSync('extension-src', OUT, { recursive: true });
 
 await esbuild.build({
-  entryPoints: ['src/ui/main.tsx'],
-  bundle: true,
+  ...uiBuildOptions,
   outdir: `${OUT}/ui`,
-  format: 'esm',
-  jsx: 'automatic',
-  jsxImportSource: 'preact',
-  target: ['firefox115'],
   minify: true,
   sourcemap: true,
 });

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'preact/hooks';
 
 import type { Rule } from '../../core/model/types.js';
 import { parseSieve } from '../../core/parser/parse.js';
+import { summarizeParse } from '../parse-summary.js';
 
 interface Props {
   onLoad: (rules: Rule[]) => void;
@@ -12,7 +13,8 @@ export function ImportDialog({ onLoad, onClose }: Props) {
   const [text, setText] = useState('');
   const result = useMemo(() => (text.trim() ? parseSieve(text) : null), [text]);
 
-  const ruleCount = result?.model.rules.length ?? 0;
+  const summary = result ? summarizeParse(result) : null;
+  const ruleCount = summary?.ruleCount ?? 0;
   const canLoad = ruleCount > 0;
 
   return (
@@ -20,7 +22,7 @@ export function ImportDialog({ onLoad, onClose }: Props) {
       <div class="dialog" onClick={(e) => e.stopPropagation()}>
         <header class="dialog-head">
           <span class="title">Import Sieve script</span>
-          <button class="icon-btn" title="Close" onClick={onClose}>
+          <button class="icon-btn" title="Close" aria-label="Close" onClick={onClose}>
             ✕
           </button>
         </header>
@@ -36,7 +38,7 @@ export function ImportDialog({ onLoad, onClose }: Props) {
         {result && (
           <div class={`import-status${result.ok ? ' ok' : ' warn'}`}>
             {result.ok ? (
-              <span>✓ {ruleCount} rule{ruleCount === 1 ? '' : 's'} recognized.</span>
+              <span>✓ {summary!.text}</span>
             ) : (
               <div>
                 <strong>Some parts weren’t recognized</strong> — loading will keep only the{' '}

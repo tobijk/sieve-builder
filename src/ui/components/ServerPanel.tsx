@@ -5,6 +5,7 @@ import type { Rule } from '../../core/model/types.js';
 import { parseSieve } from '../../core/parser/parse.js';
 import { connect, listAccounts } from '../../platform/thunderbird/backend.js';
 import type { ImapAccount } from '../../platform/thunderbird/config.js';
+import { summarizeParse } from '../parse-summary.js';
 
 interface Props {
   /** The current generated script, for saving. */
@@ -20,6 +21,7 @@ export function ServerPanel({ script, onLoad }: Props) {
   const [selected, setSelected] = useState('');
   const [client, setClient] = useState<ManageSieveClient | null>(null);
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
+  const [password, setPassword] = useState('');
   const [saveName, setSaveName] = useState('sieve-builder');
   const [activate, setActivate] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,8 +54,9 @@ export function ServerPanel({ script, onLoad }: Props) {
     run('Connect', async () => {
       const account = accounts.find((a) => a.key === selected);
       if (!account) return { kind: 'error', text: 'Select an account first.' };
-      const c = await connect(account, async () => window.prompt(`Password for ${account.username}`));
+      const c = await connect(account, async () => password.trim() || null);
       setClient(c);
+      setPassword('');
       await refresh(c);
       return { kind: 'ok', text: `Connected to ${account.host}.` };
     });
@@ -70,11 +73,13 @@ export function ServerPanel({ script, onLoad }: Props) {
     run('Load', async () => {
       if (!client) return;
       const result = parseSieve(await client.getScript(name));
+      const summary = summarizeParse(result);
+      if (summary.ruleCount === 0) {
+        return { kind: 'error', text: `"${name}" couldn’t be parsed into any editable rules.` };
+      }
       onLoad(result.model.rules);
       setSaveName(name);
-      return result.ok
-        ? { kind: 'ok', text: `Loaded "${name}".` }
-        : { kind: 'info', text: `Loaded "${name}" — ${result.issues.length} part(s) weren’t editable and were dropped.` };
+      return { kind: summary.kind === 'ok' ? 'ok' : 'info', text: `Loaded "${name}": ${summary.text}` };
     });
 
   const doActivate = (name: string) =>
@@ -109,9 +114,9 @@ export function ServerPanel({ script, onLoad }: Props) {
       </div>
 
       {!client ? (
-        <div class="row">
+        <div class="connect">
           <select
-            class="control grow"
+            class="control"
             value={selected}
             disabled={busy || accounts.length === 0}
             onChange={(e) => setSelected(e.currentTarget.value)}
@@ -123,9 +128,20 @@ export function ServerPanel({ script, onLoad }: Props) {
               </option>
             ))}
           </select>
-          <button class="btn" disabled={busy || !selected} onClick={doConnect}>
-            Connect
-          </button>
+          <div class="row">
+            <input
+              class="control grow"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Password (only if not saved)"
+              value={password}
+              disabled={busy}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+            />
+            <button class="btn" disabled={busy || !selected} onClick={doConnect}>
+              Connect
+            </button>
+          </div>
         </div>
       ) : (
         <>

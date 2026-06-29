@@ -7,6 +7,8 @@ export const uiBuildOptions = {
   format: 'esm',
   jsx: 'automatic',
   jsxImportSource: 'preact',
-  target: ['es2022'],
+  // Thunderbird 128 ESR is the floor (see manifest strict_min_version); the web
+  // dev preview runs in modern browsers, so one baseline covers both.
+  target: ['firefox128'],
   logLevel: 'info',
 };

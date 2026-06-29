@@ -32,7 +32,7 @@ export function RuleCard({ rule, onChange, onRemove }: Props) {
           onInput={(e) => patch({ name: e.currentTarget.value })}
         />
 
-        <button class="icon-btn" title="Delete rule" onClick={onRemove}>
+        <button class="icon-btn" title="Delete rule" aria-label="Delete rule" onClick={onRemove}>
           🗑
         </button>
       </header>

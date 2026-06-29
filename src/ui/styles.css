@@ -97,11 +97,6 @@ body {
   letter-spacing: -0.01em;
 }
 
-.subtle {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
 /* --- Layout --- */
 .layout {
   width: 100%;
@@ -151,6 +146,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.connect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .script-list {

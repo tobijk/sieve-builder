@@ -49,7 +49,7 @@ export function ConditionGroup({ group, onChange, onRemove, depth }: Props) {
         </select>
         <span class="hint">{isRoot ? 'of these conditions' : 'of'}</span>
         {onRemove && (
-          <button class="icon-btn group-remove" title="Remove group" onClick={onRemove}>
+          <button class="icon-btn group-remove" title="Remove group" aria-label="Remove group" onClick={onRemove}>
             ✕
           </button>
         )}

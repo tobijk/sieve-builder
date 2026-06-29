@@ -97,6 +97,12 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
               ? 'Case-sensitive — click to ignore case'
               : 'Ignoring case — click to match case'
           }
+          aria-label={
+            isCaseSensitive(test)
+              ? 'Case-sensitive matching; click to ignore case'
+              : 'Case-insensitive matching; click to match case'
+          }
+          aria-pressed={isCaseSensitive(test)}
           onClick={() => onChange(withCaseSensitive(test, !isCaseSensitive(test)))}
         >
           {isCaseSensitive(test) ? 'Aa' : 'a=A'}
@@ -106,6 +112,7 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
       <button
         class="icon-btn"
         title="Remove condition"
+        aria-label="Remove condition"
         disabled={!canRemove}
         onClick={onRemove}
       >

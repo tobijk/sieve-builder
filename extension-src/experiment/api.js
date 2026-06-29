@@ -81,7 +81,8 @@ var sieve = class extends ExtensionCommon.ExtensionAPI {
         async listAccounts() {
           const accounts = [];
           for (const server of MailServices.accounts.allServers) {
-            if (server.type !== 'imap' && server.type !== 'pop3') continue;
+            // ManageSieve is an IMAP-adjacent service; POP3 accounts have none.
+            if (server.type !== 'imap') continue;
             accounts.push({
               key: server.key,
               name: server.prettyName,
