@@ -81,7 +81,12 @@ export function App() {
 
         <aside class="side">
           {isThunderbird() && (
-            <ServerPanel model={model} onLoad={loadImported} incomplete={problems.length > 0} />
+            <ServerPanel
+              model={model}
+              onLoad={loadImported}
+              incomplete={problems.length > 0}
+              loaded={loaded}
+            />
           )}
           <Preview script={script} />
         </aside>

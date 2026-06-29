@@ -16,20 +16,20 @@ interface Props {
   onLoad: (rules: Rule[]) => void;
   /** When true, the current rules have unfinished fields — saving is blocked. */
   incomplete: boolean;
+  /** True once filters have been loaded; reveals the save controls. */
+  loaded: boolean;
 }
 
 type Status = { kind: 'ok' | 'info' | 'error'; text: string } | null;
 /** What we knew about the saved script when we loaded it, for conflict checks. */
 type Baseline = { name: string; version: number | null } | null;
 
-export function ServerPanel({ model, onLoad, incomplete }: Props) {
+export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
   const [accounts, setAccounts] = useState<ImapAccount[]>([]);
   const [selected, setSelected] = useState('');
   const [port, setPort] = useState(DEFAULT_SIEVE_PORT);
   const [password, setPassword] = useState('');
 
-  const [client, setClient] = useState<ManageSieveClient | null>(null);
-  const [insecure, setInsecure] = useState(false);
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
   const [baseline, setBaseline] = useState<Baseline>(null);
   const [saveName, setSaveName] = useState('sieve-builder');
@@ -51,7 +51,7 @@ export function ServerPanel({ model, onLoad, incomplete }: Props) {
     setBusy(true);
     try {
       const result = await fn();
-      if (result) setStatus(result);
+      if (result !== undefined) setStatus(result);
     } catch (e) {
       setStatus({ kind: 'error', text: `${label}: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -59,18 +59,30 @@ export function ServerPanel({ model, onLoad, incomplete }: Props) {
     }
   };
 
-  // Load and Save imply connect: open a session lazily on first use.
-  async function ensureClient(): Promise<ManageSieveClient> {
-    if (client) return client;
+  // The connection is an implementation detail: open it, do one job, close it.
+  async function withClient<T>(fn: (c: ManageSieveClient) => Promise<T>): Promise<T> {
     const account = accounts.find((a) => a.key === selected);
     if (!account) throw new Error('Select an account first.');
     const portOverride = Number.isFinite(port) && port > 0 ? port : DEFAULT_SIEVE_PORT;
     const c = await connect(account, async () => password.trim() || null, { port: portOverride });
-    setClient(c);
-    setInsecure(!c.isSecure);
     setPassword('');
-    return c;
+    try {
+      return await fn(c);
+    } finally {
+      await c.logout().catch(() => {}); // best-effort close
+    }
   }
+
+  /** Prefix a status with a warning when the connection wasn't encrypted. */
+  const tlsNote = (c: ManageSieveClient, s: Status): Status =>
+    s && s.kind !== 'error' && !c.isSecure
+      ? { kind: 'info', text: `No TLS — credentials sent in the clear. ${s.text}` }
+      : s;
+
+  /** Confirm before throwing away unsaved edits. */
+  const confirmReplace = (verb: string): boolean =>
+    model.rules.length === 0 ||
+    window.confirm(`${verb} will replace the rules in the editor. Unsaved changes will be lost. Continue?`);
 
   async function loadInto(c: ManageSieveClient, name: string): Promise<Status> {
     const text = await c.getScript(name);
@@ -85,176 +97,168 @@ export function ServerPanel({ model, onLoad, incomplete }: Props) {
     return { kind: summary.kind === 'ok' ? 'ok' : 'info', text: `Loaded "${name}": ${summary.text}` };
   }
 
-  function startNew(): void {
-    onLoad([]);
-    setBaseline(null);
-    setSaveName('sieve-builder');
-  }
-
   const doLoadFromServer = () =>
     run('Load', async () => {
-      const c = await ensureClient();
-      const list = await c.listScripts();
-      setScripts(list);
-      const active = list.find((s) => s.active);
-      if (active) return loadInto(c, active.name);
-      if (list.length === 0) {
-        startNew();
-        return { kind: 'info', text: 'No scripts on the server yet — start a new one, then Save.' };
-      }
-      return { kind: 'info', text: 'Connected. Choose a script to load below.' };
+      if (!confirmReplace('Loading')) return;
+      return withClient(async (c) => {
+        const list = await c.listScripts();
+        setScripts(list);
+        const active = list.find((s) => s.active);
+        if (active) return tlsNote(c, await loadInto(c, active.name));
+        if (list.length === 0) {
+          onLoad([]);
+          setBaseline(null);
+          setSaveName('sieve-builder');
+          return tlsNote(c, { kind: 'info', text: 'No scripts on the server yet — add rules and Save.' });
+        }
+        return tlsNote(c, { kind: 'info', text: 'Choose a script to load below.' });
+      });
     });
 
   const doLoadScript = (name: string) =>
-    run('Load', async () => loadInto(await ensureClient(), name));
+    run('Load', async () => {
+      if (!confirmReplace('Loading')) return;
+      return withClient(async (c) => tlsNote(c, await loadInto(c, name)));
+    });
 
   const doActivate = (name: string) =>
-    run('Activate', async () => {
-      const c = await ensureClient();
-      await c.setActive(name);
-      setScripts(await c.listScripts());
-      return { kind: 'ok', text: `"${name}" is now active.` };
-    });
+    run('Activate', () =>
+      withClient(async (c) => {
+        await c.setActive(name);
+        setScripts(await c.listScripts());
+        return { kind: 'ok', text: `"${name}" is now active.` } as Status;
+      }),
+    );
+
+  const startNew = () => {
+    if (!confirmReplace('Starting a new script')) return;
+    onLoad([]);
+    setBaseline(null);
+    setSaveName('sieve-builder');
+    setStatus({ kind: 'info', text: 'Started a new script. Add rules and Save.' });
+  };
 
   const doSave = () =>
     run('Save', async () => {
       if (incomplete) return { kind: 'error', text: 'Finish the incomplete fields before saving.' };
       const name = saveName.trim();
       if (!name) return { kind: 'error', text: 'Enter a script name.' };
-      const c = await ensureClient();
 
-      // Load-first conflict check: re-read the server copy and compare versions.
-      let exists = false;
-      let serverVersion: number | null = null;
-      try {
-        serverVersion = parseScriptVersion(await c.getScript(name));
-        exists = true;
-      } catch (e) {
-        if (!(e instanceof ManageSieveError)) throw e; // genuine error, not "no such script"
-      }
-      const base = baseline && baseline.name === name ? baseline : null;
-      if (exists && !base) {
-        return {
-          kind: 'error',
-          text: `"${name}" already exists on the server but wasn’t loaded here — load it first to avoid overwriting it.`,
-        };
-      }
-      if (exists && base && serverVersion !== base.version) {
-        return {
-          kind: 'error',
-          text: `"${name}" changed on the server (now v${serverVersion ?? '?'}, you have v${base.version ?? '?'}). Reload before saving.`,
-        };
-      }
+      return withClient(async (c) => {
+        // Load-first conflict check: re-read the server copy and compare versions.
+        let exists = false;
+        let serverVersion: number | null = null;
+        try {
+          serverVersion = parseScriptVersion(await c.getScript(name));
+          exists = true;
+        } catch (e) {
+          if (!(e instanceof ManageSieveError)) throw e; // genuine error, not "no such script"
+        }
+        const base = baseline && baseline.name === name ? baseline : null;
+        if (exists && !base) {
+          return {
+            kind: 'error',
+            text: `"${name}" already exists on the server but wasn’t loaded here — load it first to avoid overwriting it.`,
+          };
+        }
+        if (exists && base && serverVersion !== base.version) {
+          return {
+            kind: 'error',
+            text: `"${name}" changed on the server (now v${serverVersion ?? '?'}, you have v${base.version ?? '?'}). Reload before saving.`,
+          };
+        }
 
-      const newVersion = (base?.version ?? 0) + 1;
-      const out = generate(model, { version: newVersion });
-      await c.checkScript(out); // server-side validation; throws on a compile error
-      await c.putScript(name, out);
-      if (activate) await c.setActive(name);
-      setBaseline({ name, version: newVersion });
-      setScripts(await c.listScripts());
-      return { kind: 'ok', text: `Saved "${name}" (v${newVersion})${activate ? ' and activated it' : ''}.` };
-    });
-
-  const doDisconnect = () =>
-    run('Disconnect', async () => {
-      await client?.logout();
-      setClient(null);
-      setInsecure(false);
-      setScripts([]);
-      return { kind: 'info', text: 'Disconnected.' };
+        const newVersion = (base?.version ?? 0) + 1;
+        const out = generate(model, { version: newVersion });
+        await c.checkScript(out); // server-side validation; throws on a compile error
+        await c.putScript(name, out);
+        if (activate) await c.setActive(name);
+        setBaseline({ name, version: newVersion });
+        setScripts(await c.listScripts());
+        return tlsNote(c, {
+          kind: 'ok',
+          text: `Saved "${name}" (v${newVersion})${activate ? ' and activated it' : ''}.`,
+        });
+      });
     });
 
   return (
     <section class="panel">
       <div class="panel-head">
         <span class="label">Server</span>
-        {client && (
-          <button class="btn-ghost" disabled={busy} onClick={doDisconnect}>
-            Disconnect
-          </button>
-        )}
       </div>
 
-      {!client ? (
-        <div class="connect">
-          <select
+      <select
+        class="control"
+        value={selected}
+        disabled={busy || accounts.length === 0}
+        onChange={(e) => setSelected(e.currentTarget.value)}
+      >
+        {accounts.length === 0 && <option value="">No mail accounts found</option>}
+        {accounts.map((a) => (
+          <option key={a.key} value={a.key}>
+            {a.name} ({a.host})
+          </option>
+        ))}
+      </select>
+
+      <div class="row">
+        <span class="size-input">
+          <input
             class="control"
-            value={selected}
-            disabled={busy || accounts.length === 0}
-            onChange={(e) => setSelected(e.currentTarget.value)}
-          >
-            {accounts.length === 0 && <option value="">No mail accounts found</option>}
-            {accounts.map((a) => (
-              <option key={a.key} value={a.key}>
-                {a.name} ({a.host})
-              </option>
-            ))}
-          </select>
-          <div class="row">
-            <span class="size-input">
-              <input
-                class="control"
-                type="number"
-                min="1"
-                max="65535"
-                value={port}
-                disabled={busy}
-                aria-label="ManageSieve port"
-                onInput={(e) => setPort(Number(e.currentTarget.value))}
-              />
-              <span class="unit">port</span>
-            </span>
-            <input
-              class="control grow"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Password (only if not saved)"
-              value={password}
-              disabled={busy}
-              onInput={(e) => setPassword(e.currentTarget.value)}
-            />
-          </div>
-          <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
-            Load from server
-          </button>
-        </div>
-      ) : (
+            type="number"
+            min="1"
+            max="65535"
+            value={port}
+            disabled={busy}
+            aria-label="ManageSieve port"
+            onInput={(e) => setPort(Number(e.currentTarget.value))}
+          />
+          <span class="unit">port</span>
+        </span>
+        <input
+          class="control grow"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password (only if not saved)"
+          value={password}
+          disabled={busy}
+          onInput={(e) => setPassword(e.currentTarget.value)}
+        />
+      </div>
+
+      <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
+        {loaded ? 'Reload from server' : 'Load from server'}
+      </button>
+
+      {loaded && (
         <>
-          {insecure && (
-            <div class="panel-status error">No TLS — credentials were sent in the clear.</div>
+          {scripts.length > 0 && (
+            <ul class="script-list">
+              {scripts.map((s) => (
+                <li key={s.name}>
+                  <span class="script-name">
+                    {s.name}
+                    {s.active && <span class="badge">active</span>}
+                  </span>
+                  <span class="script-actions">
+                    <button class="btn-ghost" disabled={busy} onClick={() => doLoadScript(s.name)}>
+                      Load
+                    </button>
+                    {!s.active && (
+                      <button class="btn-ghost" disabled={busy} onClick={() => doActivate(s.name)}>
+                        Activate
+                      </button>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
 
-          <ul class="script-list">
-            {scripts.length === 0 && <li class="muted">No scripts on the server yet.</li>}
-            {scripts.map((s) => (
-              <li key={s.name}>
-                <span class="script-name">
-                  {s.name}
-                  {s.active && <span class="badge">active</span>}
-                </span>
-                <span class="script-actions">
-                  <button class="btn-ghost" disabled={busy} onClick={() => doLoadScript(s.name)}>
-                    Load
-                  </button>
-                  {!s.active && (
-                    <button class="btn-ghost" disabled={busy} onClick={() => doActivate(s.name)}>
-                      Activate
-                    </button>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <div class="row">
-            <button class="add-btn" disabled={busy} onClick={startNew}>
-              + New script
-            </button>
-            <button class="add-btn" disabled={busy} onClick={doLoadFromServer}>
-              ↻ Reload
-            </button>
-          </div>
+          <button class="add-btn" disabled={busy} onClick={startNew}>
+            + New script
+          </button>
 
           <div class="row save-row">
             <input
