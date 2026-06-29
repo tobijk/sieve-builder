@@ -108,7 +108,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
         if (list.length === 0) {
           onLoad([]);
           setBaseline(null);
-          setSaveName('sieve-builder');
+          setSaveName('');
           return tlsNote(c, { kind: 'info', text: 'No scripts on the server yet — add rules and Save.' });
         }
         return tlsNote(c, { kind: 'info', text: 'Choose a script to load below.' });
@@ -134,8 +134,8 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     if (!confirmReplace('Starting a new script')) return;
     onLoad([]);
     setBaseline(null);
-    setSaveName('sieve-builder');
-    setStatus({ kind: 'info', text: 'Started a new script. Add rules and Save.' });
+    setSaveName('');
+    setStatus({ kind: 'info', text: 'Started a new script. Name it, add rules, and Save.' });
   };
 
   const doSave = () =>
@@ -182,57 +182,67 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       });
     });
 
+  const statusEl = status ? <div class={`panel-status ${status.kind}`}>{status.text}</div> : null;
+
   return (
-    <section class="panel">
-      <div class="panel-head">
-        <span class="label">Server</span>
-      </div>
+    <>
+      <section class="panel">
+        <div class="panel-head">
+          <span class="label">Server</span>
+        </div>
 
-      <select
-        class="control"
-        value={selected}
-        disabled={busy || accounts.length === 0}
-        onChange={(e) => setSelected(e.currentTarget.value)}
-      >
-        {accounts.length === 0 && <option value="">No mail accounts found</option>}
-        {accounts.map((a) => (
-          <option key={a.key} value={a.key}>
-            {a.name} ({a.host})
-          </option>
-        ))}
-      </select>
+        <select
+          class="control"
+          value={selected}
+          disabled={busy || accounts.length === 0}
+          onChange={(e) => setSelected(e.currentTarget.value)}
+        >
+          {accounts.length === 0 && <option value="">No mail accounts found</option>}
+          {accounts.map((a) => (
+            <option key={a.key} value={a.key}>
+              {a.name} ({a.host})
+            </option>
+          ))}
+        </select>
 
-      <div class="row">
-        <span class="size-input">
+        <div class="row">
+          <span class="size-input">
+            <input
+              class="control"
+              type="number"
+              min="1"
+              max="65535"
+              value={port}
+              disabled={busy}
+              aria-label="ManageSieve port"
+              onInput={(e) => setPort(Number(e.currentTarget.value))}
+            />
+            <span class="unit">port</span>
+          </span>
           <input
-            class="control"
-            type="number"
-            min="1"
-            max="65535"
-            value={port}
+            class="control grow"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password (only if not saved)"
+            value={password}
             disabled={busy}
-            aria-label="ManageSieve port"
-            onInput={(e) => setPort(Number(e.currentTarget.value))}
+            onInput={(e) => setPassword(e.currentTarget.value)}
           />
-          <span class="unit">port</span>
-        </span>
-        <input
-          class="control grow"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Password (only if not saved)"
-          value={password}
-          disabled={busy}
-          onInput={(e) => setPassword(e.currentTarget.value)}
-        />
-      </div>
+        </div>
 
-      <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
-        {loaded ? 'Reload from server' : 'Load from server'}
-      </button>
+        <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
+          Load
+        </button>
+
+        {!loaded && statusEl}
+      </section>
 
       {loaded && (
-        <>
+        <section class="panel">
+          <div class="panel-head">
+            <span class="label">Scripts</span>
+          </div>
+
           {scripts.length > 0 && (
             <ul class="script-list">
               {scripts.map((s) => (
@@ -281,10 +291,10 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
               Save
             </button>
           </div>
-        </>
-      )}
 
-      {status && <div class={`panel-status ${status.kind}`}>{status.text}</div>}
-    </section>
+          {statusEl}
+        </section>
+      )}
+    </>
   );
 }
