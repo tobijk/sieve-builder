@@ -118,7 +118,13 @@ const MODELS: Record<string, SieveModel> = {
   },
   disabled: {
     rules: [
-      { id: 'a', name: 'Off', enabled: false, root: { type: 'group', match: 'all', children: [] }, actions: [] },
+      {
+        id: 'a',
+        name: 'Off',
+        enabled: false,
+        root: { type: 'group', match: 'all', children: [{ type: 'header', fields: ['Subject'], match: 'contains', values: ['spam'], comparator: 'i;octet' }] },
+        actions: [{ type: 'fileinto', mailbox: 'Junk', create: true }, { type: 'stop' }],
+      },
       { id: 'b', name: 'On', enabled: true, root: { type: 'group', match: 'all', children: [{ type: 'header', fields: ['Subject'], match: 'is', values: ['x'], comparator: 'i;octet' }] }, actions: [{ type: 'keep' }] },
     ],
   },
@@ -133,6 +139,29 @@ for (const [name, model] of Object.entries(MODELS)) {
     assert.equal(generate(result.model), script);
   });
 }
+
+test('a disabled rule keeps its conditions and actions through a round-trip', () => {
+  const m: SieveModel = {
+    rules: [
+      {
+        id: 'a',
+        name: 'Holiday',
+        enabled: false,
+        root: { type: 'group', match: 'all', children: [{ type: 'header', fields: ['Subject'], match: 'contains', values: ['away'], comparator: 'i;octet' }] },
+        actions: [{ type: 'fileinto', mailbox: 'Later', create: true }, { type: 'stop' }],
+      },
+    ],
+  };
+  const result = parseSieve(generate(m));
+  assert.ok(result.ok, JSON.stringify(result.issues));
+  const rule = result.model.rules[0]!;
+  assert.equal(rule.enabled, false);
+  assert.equal(rule.root.children.length, 1);
+  assert.deepEqual(
+    rule.actions.map((a) => a.type),
+    ['fileinto', 'stop'],
+  );
+});
 
 test('preserves rule names, order, and enabled state', () => {
   const result = parseSieve(generate(MODELS.disabled!));

@@ -27,8 +27,8 @@ import {
   MATCH_TYPES,
   RELATIONAL_OPS,
 } from '../model/subset.js';
-import type { AstArg, AstCommand, AstTest } from './grammar.js';
-import type { Marker } from './lexer.js';
+import { parseTokens, type AstArg, type AstCommand, type AstTest } from './grammar.js';
+import { lex, type Marker } from './lexer.js';
 
 export interface ParseIssue {
   message: string;
@@ -350,6 +350,25 @@ function lowerVacation(args: AstArg[], fail: (m: string) => void): Action | null
   };
 }
 
+const EMPTY_ROOT = (): ConditionGroup => ({ type: 'group', match: 'all', children: [] });
+
+/** Re-parse a disabled rule's (de-commented) body into its conditions/actions. */
+function parseDisabledBody(
+  body: string,
+  issues: ParseIssue[],
+): { root: ConditionGroup; actions: Action[] } {
+  if (!body.trim()) return { root: EMPTY_ROOT(), actions: [] };
+  try {
+    const sub = lower(parseTokens(lex(body).tokens), []);
+    issues.push(...sub.issues);
+    const rule = sub.model.rules[0];
+    if (rule) return { root: rule.root, actions: rule.actions };
+  } catch (e) {
+    issues.push({ message: `could not parse a disabled rule: ${e instanceof Error ? e.message : String(e)}` });
+  }
+  return { root: EMPTY_ROOT(), actions: [] };
+}
+
 type Item = { pos: number } & (
   | { kind: 'marker'; marker: Marker }
   | { kind: 'cmd'; cmd: AstCommand }
@@ -379,12 +398,13 @@ export function lower(commands: AstCommand[], markers: Marker[]): { model: Sieve
     if (item.kind === 'marker') {
       flush();
       if (item.marker.disabled) {
+        const { root, actions } = parseDisabledBody(item.marker.body ?? '', issues);
         rules.push({
           id: nextId(),
           name: item.marker.name,
           enabled: false,
-          root: { type: 'group', match: 'all', children: [] },
-          actions: [],
+          root,
+          actions,
         });
         pendingName = null;
       } else {

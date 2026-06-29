@@ -31,6 +31,8 @@ export interface Marker {
   name: string;
   disabled: boolean;
   pos: number;
+  /** For a disabled rule: its commented-out body, de-commented. */
+  body?: string;
 }
 
 export interface LexResult {
@@ -89,9 +91,27 @@ export function lex(src: string): LexResult {
     }
 
     if (c === '#') {
+      const start = i;
       const { line, next } = readLine(i);
       const m = RULE_MARKER.exec(line);
-      if (m) markers.push({ name: m[1] ?? '', disabled: DISABLED.test(line), pos: i });
+      if (!m) {
+        i = next;
+        continue;
+      }
+      if (DISABLED.test(line)) {
+        // A disabled rule's body follows as consecutive commented-out lines.
+        let j = next;
+        const bodyLines: string[] = [];
+        while (j < n && src[j] === '#') {
+          const r = readLine(j);
+          bodyLines.push(r.line.replace(/^#\s?/, ''));
+          j = r.next;
+        }
+        markers.push({ name: m[1] ?? '', disabled: true, pos: start, body: bodyLines.join('\n') });
+        i = j;
+        continue;
+      }
+      markers.push({ name: m[1] ?? '', disabled: false, pos: start });
       i = next;
       continue;
     }

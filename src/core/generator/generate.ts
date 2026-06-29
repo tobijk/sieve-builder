@@ -81,20 +81,28 @@ export function generate(model: SieveModel, options: GenerateOptions = {}): stri
 
 function generateRule(rule: Rule): string {
   const marker = `# rule:[${sieveComment(rule.name)}]`;
+  const body = generateRuleBody(rule);
 
   if (!rule.enabled) {
-    // Preserve the rule's existence (and name) without emitting live code.
-    return `${marker} (disabled)`;
+    // Disabled: emit the full rule commented out, so its content is preserved
+    // (and re-enableable) while staying inert. The parser reads it back.
+    const commented = body
+      .split('\n')
+      .map((line) => (line ? `# ${line}` : '#'))
+      .join('\n');
+    return `${marker} (disabled)\n${commented}`;
   }
 
-  const body = rule.actions.map((a) => INDENT + generateAction(a)).join('\n');
+  return `${marker}\n${body}`;
+}
 
-  // Unconditional rule: actions run for every message, no `if` wrapper.
+/** The live Sieve for a rule: an `if` block, or bare actions when unconditional. */
+function generateRuleBody(rule: Rule): string {
   if (rule.root.children.length === 0) {
-    return `${marker}\n${rule.actions.map(generateAction).join('\n')}`;
+    return rule.actions.map(generateAction).join('\n');
   }
-
-  return `${marker}\nif ${generateGroup(rule.root)}\n{\n${body}\n}`;
+  const body = rule.actions.map((a) => INDENT + generateAction(a)).join('\n');
+  return `if ${generateGroup(rule.root)}\n{\n${body}\n}`;
 }
 
 function generateNode(node: ConditionNode): string {

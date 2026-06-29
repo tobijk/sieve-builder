@@ -146,12 +146,23 @@ test('unconditional rule emits actions without an if-block', () => {
   assert.doesNotMatch(out, /\nif /);
 });
 
-test('disabled rule is preserved as a marker only', () => {
+test('a disabled rule is commented out but keeps its content', () => {
   const out = generate({
-    rules: [rule({ name: 'Off', enabled: false, actions: [{ type: 'discard' }] })],
+    rules: [
+      rule({
+        name: 'Off',
+        enabled: false,
+        tests: [{ type: 'header', fields: ['Subject'], match: 'is', values: ['x'] }],
+        actions: [{ type: 'discard' }],
+      }),
+    ],
   });
   assert.match(out, /# rule:\[Off\] \(disabled\)/);
-  assert.doesNotMatch(out, /discard/);
+  assert.match(out, /# if header :is "Subject" "x"/); // content preserved as comments
+  assert.match(out, /# {2}discard;|# \tdiscard;/);
+  // ...but nothing runs: no uncommented code.
+  assert.doesNotMatch(out, /^if /m);
+  assert.doesNotMatch(out, /^\s*discard;/m);
 });
 
 test('user strings are escaped — no Sieve injection', () => {
