@@ -16,13 +16,13 @@ const STARTER: SieveModel = {
         type: 'group',
         match: 'all',
         children: [
-          { type: 'header', fields: ['Subject'], match: 'contains', values: ['statement'] },
+          { type: 'header', fields: ['Subject'], match: 'contains', values: ['statement'], comparator: 'i;octet' },
           {
             type: 'group',
             match: 'any',
             children: [
-              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybank.com'] },
-              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybroker.com'] },
+              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybank.com'], comparator: 'i;octet' },
+              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybroker.com'], comparator: 'i;octet' },
             ],
           },
         ],

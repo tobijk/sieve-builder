@@ -4,10 +4,13 @@ import {
   FIELD_OPTIONS,
   customName,
   fieldKey,
+  hasCaseToggle,
+  isCaseSensitive,
   matchKey,
   matchOptions,
   sizeMB,
   textValue,
+  withCaseSensitive,
   withCustomName,
   withField,
   withMatch,
@@ -84,6 +87,20 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
           value={textValue(test)}
           onInput={(e) => onChange(withText(test, e.currentTarget.value))}
         />
+      )}
+
+      {hasCaseToggle(test) && (
+        <button
+          class={`case-btn${isCaseSensitive(test) ? '' : ' folding'}`}
+          title={
+            isCaseSensitive(test)
+              ? 'Case-sensitive — click to ignore case'
+              : 'Ignoring case — click to match case'
+          }
+          onClick={() => onChange(withCaseSensitive(test, !isCaseSensitive(test)))}
+        >
+          {isCaseSensitive(test) ? 'Aa' : 'a=A'}
+        </button>
       )}
 
       <button

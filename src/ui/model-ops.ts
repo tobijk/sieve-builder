@@ -6,7 +6,8 @@ export function uid(): string {
 }
 
 export function newTest(): Test {
-  return { type: 'header', fields: ['Subject'], match: 'contains', values: [''] };
+  // Default to case-sensitive matching (i;octet); see ui/condition.ts.
+  return { type: 'header', fields: ['Subject'], match: 'contains', values: [''], comparator: 'i;octet' };
 }
 
 /** A fresh sub-group defaults to OR — the usual reason to nest inside an AND. */

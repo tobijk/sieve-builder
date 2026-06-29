@@ -5,9 +5,12 @@ import type { Test } from '../core/model/types.js';
 import {
   CUSTOM,
   fieldKey,
+  hasCaseToggle,
+  isCaseSensitive,
   matchKey,
   sizeMB,
   textValue,
+  withCaseSensitive,
   withCustomName,
   withField,
   withMatch,
@@ -67,4 +70,25 @@ test('withText updates only the value', () => {
   const t = withText(header, 'changed');
   assert.equal(textValue(t), 'changed');
   assert.equal(fieldKey(t), 'Subject');
+});
+
+test('new text conditions are case-sensitive by default', () => {
+  const t = withField(header, 'From');
+  assert.equal(isCaseSensitive(t), true);
+  assert.equal('comparator' in t && t.comparator, 'i;octet');
+});
+
+test('case sensitivity survives field and operator changes', () => {
+  let t = withCaseSensitive(withField(header, 'Subject'), false);
+  assert.equal(isCaseSensitive(t), false);
+  t = withMatch(t, 'is');
+  assert.equal(isCaseSensitive(t), false);
+  t = withField(t, 'From');
+  assert.equal(isCaseSensitive(t), false);
+  assert.equal('comparator' in t && t.comparator, 'i;ascii-casemap');
+});
+
+test('size conditions have no case toggle', () => {
+  assert.equal(hasCaseToggle(withField(header, 'Size')), false);
+  assert.equal(hasCaseToggle(header), true);
 });

@@ -3,7 +3,16 @@
  * condition row (a field, a match operator, a value). This keeps the model
  * precise while the UI stays approachable. All conversions are pure.
  */
-import type { MatchType, Test } from '../core/model/types.js';
+import type { Comparator, MatchType, Test } from '../core/model/types.js';
+
+/**
+ * Case-sensitivity is a UI-layer policy. New text conditions default to the
+ * `i;octet` comparator (case-sensitive); the alternative is `i;ascii-casemap`
+ * (case-insensitive, Sieve's own default). The core generator stays neutral and
+ * only emits a comparator when the model specifies one.
+ */
+const SENSITIVE: Comparator = 'i;octet';
+const INSENSITIVE: Comparator = 'i;ascii-casemap';
 
 export const ADDRESS_FIELDS = ['From', 'To', 'Cc', 'Reply-To', 'Sender'];
 const HEADER_FIELDS = ['Subject', 'List-Id'];
@@ -102,15 +111,22 @@ function decode(key: MatchKey): { match: MatchType; negate: boolean } {
   }
 }
 
-function makeTextTest(field: string, key: MatchKey, value: string): Test {
+/** The comparator carried by a test, defaulting to case-sensitive. */
+function comparatorOf(test: Test): Comparator {
+  return 'comparator' in test && test.comparator ? test.comparator : SENSITIVE;
+}
+
+function makeTextTest(
+  field: string,
+  key: MatchKey,
+  value: string,
+  comparator: Comparator = SENSITIVE,
+): Test {
   const { match, negate } = decode(key);
-  if (field === 'Body') {
-    return { type: 'body', transform: 'text', match, values: [value], ...(negate && { negate }) };
-  }
-  if (ADDRESS_FIELDS.includes(field)) {
-    return { type: 'address', part: 'all', fields: [field], match, values: [value], ...(negate && { negate }) };
-  }
-  return { type: 'header', fields: [field], match, values: [value], ...(negate && { negate }) };
+  const common = { match, values: [value], comparator, ...(negate && { negate }) };
+  if (field === 'Body') return { type: 'body', transform: 'text', ...common };
+  if (ADDRESS_FIELDS.includes(field)) return { type: 'address', part: 'all', fields: [field], ...common };
+  return { type: 'header', fields: [field], ...common };
 }
 
 export function withField(test: Test, field: string): Test {
@@ -118,13 +134,34 @@ export function withField(test: Test, field: string): Test {
   const value = textValue(test);
   const key = matchKey(test);
   const textKey: MatchKey = key === 'over' || key === 'under' ? 'contains' : key;
-  return makeTextTest(field === CUSTOM ? '' : field, textKey, value);
+  return makeTextTest(field === CUSTOM ? '' : field, textKey, value, comparatorOf(test));
 }
 
 export function withMatch(test: Test, key: MatchKey): Test {
   if (test.type === 'size') return { ...test, over: key === 'over' };
   const field = fieldKey(test) === CUSTOM ? customName(test) : fieldKey(test);
-  return makeTextTest(field, key, textValue(test));
+  return makeTextTest(field, key, textValue(test), comparatorOf(test));
+}
+
+/** Case sensitivity only applies to text tests; size has no comparator. */
+export function hasCaseToggle(test: Test): boolean {
+  return test.type !== 'size';
+}
+
+export function isCaseSensitive(test: Test): boolean {
+  return comparatorOf(test) === SENSITIVE;
+}
+
+export function withCaseSensitive(test: Test, sensitive: boolean): Test {
+  switch (test.type) {
+    case 'header':
+    case 'address':
+    case 'envelope':
+    case 'body':
+      return { ...test, comparator: sensitive ? SENSITIVE : INSENSITIVE };
+    default:
+      return test;
+  }
 }
 
 export function withCustomName(test: Test, name: string): Test {

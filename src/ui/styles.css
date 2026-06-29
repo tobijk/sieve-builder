@@ -371,6 +371,32 @@ select.control {
   cursor: not-allowed;
 }
 
+/* Case-sensitivity toggle. Quiet by default (sensitive); accented when
+   case-folding is on, so the non-default state stands out. */
+.case-btn {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.case-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.case-btn.folding {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 /* --- Toggle switch --- */
 .switch {
   position: relative;
