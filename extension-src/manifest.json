@@ -6,7 +6,7 @@
   "author": "Aeltra",
   "browser_specific_settings": {
     "gecko": {
-      "id": "sieve-builder@aeltra",
+      "id": "sieve-builder@aeltra.eu",
       "strict_min_version": "128.0"
     }
   },
