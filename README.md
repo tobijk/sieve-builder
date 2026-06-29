@@ -18,7 +18,8 @@ are validated against Dovecot's `sievec` compiler.
 - [x] Generator: model → Sieve, with computed `require`s and injection-safe
       string handling (`src/core/generator`, `src/core/sieve`)
 - [x] UI rule editor with live preview (`src/ui`, Preact)
-- [ ] ManageSieve client (injected transport)
+- [x] ManageSieve client over an injected transport (`src/core/managesieve`),
+      with a Node transport (`src/platform/node`); verified against Dovecot
 - [ ] Parser: Sieve → model (round-trip)
 - [ ] Thunderbird MailExtension shell
 
@@ -63,3 +64,7 @@ npm test            # node --test via tsx
 The test suite validates generated scripts with Dovecot Pigeonhole's `sievec`
 when it is installed (Debian/Ubuntu: `sudo apt install dovecot-sieve`); it skips
 that check gracefully otherwise.
+
+`npm run test:integration` exercises the ManageSieve client against a real
+Dovecot server it starts in Docker (`docker/`), then tears it down. These tests
+are excluded from `npm test`, which stays offline.
