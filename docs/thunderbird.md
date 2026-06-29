@@ -72,7 +72,8 @@ Thunderbird-specific.
 ## Verification status
 
 Everything except the privileged socket code is covered by the automated test
-suite. `experiment/api.js` (raw TCP + STARTTLS via XPCOM) **must be verified in a
-real Thunderbird build** — the XPCOM socket/STARTTLS surface has changed across
-Gecko versions, so the STARTTLS upgrade path in particular may need adjustment
-for your target version. See the header comment in that file.
+suite (and validated against a real Dovecot over Docker). `experiment/api.js`
+(raw TCP + STARTTLS + OAuth token retrieval via XPCOM) has been verified running
+in Thunderbird. Note its APIs are Gecko-version-sensitive: if you target a
+different Thunderbird major version, re-check the STARTTLS upgrade and the
+`msgIOAuth2Module` calls. See the header comment in that file.

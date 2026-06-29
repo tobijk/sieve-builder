@@ -23,8 +23,8 @@ are validated against Dovecot's `sievec` compiler.
 - [x] Parser: Sieve → model (`src/core/parser`), round-trip property-tested,
       with graceful fallback; wired into the UI as Import
 - [x] Thunderbird MailExtension (`extension-src`, `src/platform/thunderbird`):
-      `npm run build:ext` → `dist-ext/`. See [docs/thunderbird.md](docs/thunderbird.md).
-      The privileged TCP code needs verification in a real Thunderbird build.
+      `npm run build:ext` → `dist-ext/` + a `.xpi`. See
+      [docs/thunderbird.md](docs/thunderbird.md). Verified running in Thunderbird.
 
 ## Architecture
 
