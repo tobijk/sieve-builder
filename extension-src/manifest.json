@@ -1,13 +1,14 @@
 {
   "manifest_version": 2,
   "name": "Sieve Builder",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Build, edit, and store Dovecot Sieve filters over ManageSieve.",
   "author": "Tobias Koch",
   "browser_specific_settings": {
     "gecko": {
       "id": "sieve-builder@tobijk",
-      "strict_min_version": "128.0"
+      "strict_min_version": "128.0",
+      "strict_max_version": "128.*"
     }
   },
   "icons": {
