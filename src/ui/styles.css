@@ -365,6 +365,16 @@ select.control {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+/* Empty required fields are flagged so unfinished rules stand out. */
+.control:required:invalid {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border-strong));
+}
+
+.control:required:invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
 .control.grow {
   flex: 1;
   min-width: 120px;
@@ -581,6 +591,16 @@ select.control {
   padding: 24px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
+}
+
+.banner {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-sm);
 }
 
 /* --- Import dialog --- */

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'preact/hooks';
 
 import { generate } from '../core/generator/generate.js';
 import type { Rule, SieveModel } from '../core/model/types.js';
+import { validateModel } from '../core/model/validate.js';
 import { isThunderbird } from '../platform/thunderbird/backend.js';
 import { ImportDialog } from './components/ImportDialog.js';
 import { Preview } from './components/Preview.js';
@@ -42,6 +43,7 @@ export function App() {
   const [model, setModel] = useState<SieveModel>(STARTER);
   const [importing, setImporting] = useState(false);
   const script = useMemo(() => generate(model), [model]);
+  const problems = useMemo(() => validateModel(model), [model]);
 
   const setRules = (rules: SieveModel['rules']) => setModel({ ...model, rules });
 
@@ -66,6 +68,13 @@ export function App() {
 
       <main class="layout">
         <section class="rules">
+          {problems.length > 0 && (
+            <div class="banner" role="status">
+              {problems.length} incomplete {problems.length === 1 ? 'field' : 'fields'} — fill{' '}
+              {problems.length === 1 ? 'it' : 'them'} in before saving.
+            </div>
+          )}
+
           {model.rules.map((rule, i) => (
             <RuleCard
               key={rule.id}
@@ -85,7 +94,9 @@ export function App() {
         </section>
 
         <aside class="side">
-          {isThunderbird() && <ServerPanel script={script} onLoad={loadImported} />}
+          {isThunderbird() && (
+            <ServerPanel script={script} onLoad={loadImported} incomplete={problems.length > 0} />
+          )}
           <Preview script={script} />
         </aside>
       </main>

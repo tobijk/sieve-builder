@@ -12,11 +12,13 @@ interface Props {
   script: string;
   /** Replace the editor's rules with ones loaded from the server. */
   onLoad: (rules: Rule[]) => void;
+  /** When true, the current rules have unfinished fields — saving is blocked. */
+  incomplete: boolean;
 }
 
 type Status = { kind: 'ok' | 'info' | 'error'; text: string } | null;
 
-export function ServerPanel({ script, onLoad }: Props) {
+export function ServerPanel({ script, onLoad, incomplete }: Props) {
   const [accounts, setAccounts] = useState<ImapAccount[]>([]);
   const [selected, setSelected] = useState('');
   const [client, setClient] = useState<ManageSieveClient | null>(null);
@@ -97,6 +99,7 @@ export function ServerPanel({ script, onLoad }: Props) {
   const doSave = () =>
     run('Save', async () => {
       if (!client) return;
+      if (incomplete) return { kind: 'error', text: 'Finish the incomplete fields before saving.' };
       const name = saveName.trim();
       if (!name) return { kind: 'error', text: 'Enter a script name.' };
       await client.checkScript(script); // server-side validation; throws on error
@@ -196,7 +199,12 @@ export function ServerPanel({ script, onLoad }: Props) {
               <input type="checkbox" checked={activate} onChange={(e) => setActivate(e.currentTarget.checked)} />
               activate
             </label>
-            <button class="btn" disabled={busy} onClick={doSave}>
+            <button
+              class="btn"
+              disabled={busy || incomplete}
+              title={incomplete ? 'Finish the incomplete fields first' : undefined}
+              onClick={doSave}
+            >
               Save
             </button>
           </div>

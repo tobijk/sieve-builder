@@ -49,6 +49,7 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
         <input
           class="control"
           type="text"
+          required
           placeholder="Header name"
           value={customName(test)}
           onInput={(e) => onChange(withCustomName(test, e.currentTarget.value))}
@@ -83,6 +84,7 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
         <input
           class="control grow"
           type="text"
+          required
           placeholder="value"
           value={textValue(test)}
           onInput={(e) => onChange(withText(test, e.currentTarget.value))}

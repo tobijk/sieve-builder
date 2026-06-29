@@ -45,6 +45,7 @@ export function ActionRow({ action, onChange, onRemove, canRemove }: Props) {
           <input
             class="control grow"
             type="text"
+            required
             placeholder="Folder, e.g. INBOX/Lists"
             value={action.mailbox}
             onInput={(e) => onChange({ ...action, mailbox: e.currentTarget.value })}
@@ -65,6 +66,7 @@ export function ActionRow({ action, onChange, onRemove, canRemove }: Props) {
           <input
             class="control grow"
             type="email"
+            required
             placeholder="address@example.com"
             value={action.address}
             onInput={(e) => onChange({ ...action, address: e.currentTarget.value })}
@@ -99,6 +101,7 @@ export function ActionRow({ action, onChange, onRemove, canRemove }: Props) {
           <input
             class="control grow"
             type="text"
+            required
             placeholder="Reply message"
             value={action.reason}
             onInput={(e) => onChange({ ...action, reason: e.currentTarget.value })}
