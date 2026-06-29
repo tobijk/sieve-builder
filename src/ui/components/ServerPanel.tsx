@@ -166,15 +166,37 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       if (!name) return { kind: 'error', text: 'Enter a script name.' };
 
       return withClient(async (c) => {
-        // Load-first conflict check: re-read the server copy and compare versions.
-        let exists = false;
-        let serverVersion: number | null = null;
+        // Load-first: re-read the server copy.
+        let current: string | null = null;
         try {
-          serverVersion = parseScriptVersion(await c.getScript(name));
-          exists = true;
+          current = await c.getScript(name);
         } catch (e) {
           if (!(e instanceof ManageSieveError)) throw e; // genuine error, not "no such script"
         }
+        const exists = current !== null;
+        const candidate = generate(model);
+
+        // No-op guard: if the content already on the server is identical (ignoring
+        // the version stamp), don't write a new version. Compared canonically via
+        // the parse->generate round-trip, which is exact for our supported subset.
+        if (exists) {
+          const parsed = parseSieve(current!);
+          if (parsed.ok && generate(parsed.model) === candidate) {
+            const serverVersion = parseScriptVersion(current!);
+            setBaseline({ name, version: serverVersion }); // adopt it so later edits can save
+            const isActive = scripts.find((s) => s.name === name)?.active ?? false;
+            if (activate && !isActive) {
+              await c.setActive(name);
+              setScripts(await c.listScripts());
+              return { kind: 'info', text: `"${name}" is unchanged — activated without saving a new version.` };
+            }
+            return { kind: 'info', text: `"${name}" is unchanged — nothing to save.` };
+          }
+        }
+
+        // Conflict check (content genuinely differs): the server version must match
+        // what we loaded, and a pre-existing script must have been loaded here.
+        const serverVersion = exists ? parseScriptVersion(current!) : null;
         const base = baseline && baseline.name === name ? baseline : null;
         if (exists && !base) {
           return {
