@@ -36,7 +36,9 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
   const [activate, setActivate] = useState(true);
 
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
+  // Each card shows the status of actions triggered from it.
+  const [serverStatus, setServerStatus] = useState<Status>(null);
+  const [scriptStatus, setScriptStatus] = useState<Status>(null);
 
   useEffect(() => {
     listAccounts()
@@ -44,16 +46,20 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
         setAccounts(list);
         if (list[0]) setSelected(list[0].key);
       })
-      .catch((e) => setStatus({ kind: 'error', text: String(e) }));
+      .catch((e) => setServerStatus({ kind: 'error', text: String(e) }));
   }, []);
 
-  const run = async (label: string, fn: () => Promise<Status | void>) => {
+  const run = async (
+    setter: (s: Status) => void,
+    label: string,
+    fn: () => Promise<Status | void>,
+  ) => {
     setBusy(true);
     try {
       const result = await fn();
-      if (result !== undefined) setStatus(result);
+      if (result !== undefined) setter(result);
     } catch (e) {
-      setStatus({ kind: 'error', text: `${label}: ${e instanceof Error ? e.message : String(e)}` });
+      setter({ kind: 'error', text: `${label}: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(false);
     }
@@ -98,7 +104,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
   }
 
   const doLoadFromServer = () =>
-    run('Load', async () => {
+    run(setServerStatus, 'Load', async () => {
       if (!confirmReplace('Loading')) return;
       return withClient(async (c) => {
         const list = await c.listScripts();
@@ -116,13 +122,13 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     });
 
   const doLoadScript = (name: string) =>
-    run('Load', async () => {
+    run(setScriptStatus, 'Load', async () => {
       if (!confirmReplace('Loading')) return;
       return withClient(async (c) => tlsNote(c, await loadInto(c, name)));
     });
 
   const doActivate = (name: string) =>
-    run('Activate', () =>
+    run(setScriptStatus, 'Activate', () =>
       withClient(async (c) => {
         await c.setActive(name);
         setScripts(await c.listScripts());
@@ -132,7 +138,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
 
   const doDelete = (name: string) => {
     if (!window.confirm(`Delete "${name}" from the server? This can’t be undone.`)) return;
-    run('Delete', () =>
+    run(setScriptStatus, 'Delete', () =>
       withClient(async (c) => {
         await c.deleteScript(name);
         setScripts(await c.listScripts());
@@ -147,11 +153,11 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     onLoad([]);
     setBaseline(null);
     setSaveName('');
-    setStatus({ kind: 'info', text: 'Started a new script. Name it, add rules, and Save.' });
+    setScriptStatus({ kind: 'info', text: 'Started a new script. Name it, add rules, and Save.' });
   };
 
   const doSave = () =>
-    run('Save', async () => {
+    run(setScriptStatus, 'Save', async () => {
       if (incomplete) return { kind: 'error', text: 'Finish the incomplete fields before saving.' };
       const name = saveName.trim();
       if (!name) return { kind: 'error', text: 'Enter a script name.' };
@@ -194,7 +200,8 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       });
     });
 
-  const statusEl = status ? <div class={`panel-status ${status.kind}`}>{status.text}</div> : null;
+  const statusView = (s: Status) =>
+    s ? <div class={`panel-status ${s.kind}`}>{s.text}</div> : null;
 
   return (
     <>
@@ -246,7 +253,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
           Load
         </button>
 
-        {!loaded && statusEl}
+        {statusView(serverStatus)}
       </section>
 
       {loaded && (
@@ -313,7 +320,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
             </button>
           </div>
 
-          {statusEl}
+          {statusView(scriptStatus)}
         </section>
       )}
     </>
