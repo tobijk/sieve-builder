@@ -84,6 +84,16 @@ test('store, activate, fetch (byte-identical), and delete a script', { skip }, a
   }
 });
 
+test('authenticates via SCRAM-SHA-256 when the server offers it', { skip }, async () => {
+  const transport = await NodeTransport.connect({ host: HOST, port: PORT });
+  const client = new ManageSieveClient(transport, { requireTls: false });
+  await client.connect();
+  assert.ok(client.capabilities.sasl.has('SCRAM-SHA-256'), 'server should offer SCRAM-SHA-256');
+  // authenticate() auto-selects SCRAM-SHA-256 over PLAIN; success proves the handshake.
+  await client.authenticate(USER, PASS);
+  await client.logout();
+});
+
 test('a fresh server has no scripts and getScript reports a missing one', { skip }, async () => {
   const client = await authedClient();
   try {

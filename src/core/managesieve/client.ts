@@ -14,6 +14,7 @@ import { concat } from './bytes.js';
 import { ManageSieveError, ProtocolError } from './errors.js';
 import {
   base64,
+  fromBase64,
   isStatusHead,
   parseCapability,
   parseListLine,
@@ -21,6 +22,12 @@ import {
   quote,
   type StatusLine,
 } from './protocol.js';
+import {
+  plainMechanism,
+  scramMechanism,
+  xoauth2Mechanism,
+  type SaslMechanism,
+} from './sasl.js';
 import { ByteReader } from './reader.js';
 import type { Transport } from './transport.js';
 
@@ -111,24 +118,25 @@ export class ManageSieveClient {
     });
   }
 
-  /** Authenticate with SASL PLAIN. */
+  /**
+   * Authenticate with a password, using the strongest mechanism the server
+   * offers: SCRAM-SHA-256 > SCRAM-SHA-1 > PLAIN.
+   */
   authenticate(username: string, password: string): Promise<void> {
     return this.serialize(async () => {
-      if (this.options.requireTls !== false && !this.secure) {
-        throw new ProtocolError(
-          'refusing to send credentials over an insecure connection; call startTls() first',
-        );
+      this.assertSecureForAuth();
+      await this.runSasl(this.pickPasswordMechanism(username, password));
+    });
+  }
+
+  /** Authenticate with an OAuth2 bearer token via SASL XOAUTH2. */
+  authenticateOAuth2(username: string, token: string): Promise<void> {
+    return this.serialize(async () => {
+      this.assertSecureForAuth();
+      if (this.caps.sasl.size > 0 && !this.caps.sasl.has('XOAUTH2')) {
+        throw new ProtocolError('server does not offer SASL XOAUTH2');
       }
-      if (this.caps.sasl.size > 0 && !this.caps.sasl.has('PLAIN')) {
-        throw new ProtocolError('server does not offer SASL PLAIN');
-      }
-      // SASL PLAIN = authzid <NUL> authcid <NUL> passwd, with an empty authzid.
-      const NUL = String.fromCharCode(0);
-      const credentials = this.enc.encode(`${NUL}${username}${NUL}${password}`);
-      await this.send(`AUTHENTICATE "PLAIN" ${quote(base64(credentials))}`);
-      const { status, data } = await this.readResponse();
-      if (!status.ok) throw new ManageSieveError(status);
-      if (data.length > 0) this.caps = this.parseCapabilities(data); // some servers re-issue caps
+      await this.runSasl(xoauth2Mechanism(username, token));
     });
   }
 
@@ -235,6 +243,45 @@ export class ManageSieveClient {
 
   private async send(command: string): Promise<void> {
     await this.transport.write(this.enc.encode(`${command}\r\n`));
+  }
+
+  private assertSecureForAuth(): void {
+    if (this.options.requireTls !== false && !this.secure) {
+      throw new ProtocolError(
+        'refusing to send credentials over an insecure connection; call startTls() first',
+      );
+    }
+  }
+
+  private pickPasswordMechanism(username: string, password: string): SaslMechanism {
+    const sasl = this.caps.sasl;
+    if (sasl.has('SCRAM-SHA-256')) return scramMechanism(username, password, 'SHA-256');
+    if (sasl.has('SCRAM-SHA-1')) return scramMechanism(username, password, 'SHA-1');
+    if (sasl.size === 0 || sasl.has('PLAIN')) return plainMechanism(username, password);
+    throw new ProtocolError('server offers no supported password mechanism (PLAIN or SCRAM)');
+  }
+
+  /** Drive a SASL exchange: initial response, then challenge/response until OK/NO. */
+  private async runSasl(mechanism: SaslMechanism): Promise<void> {
+    const initial = await mechanism.start();
+    let command = `AUTHENTICATE ${quote(mechanism.name)}`;
+    if (initial !== null) command += ` ${quote(base64(initial))}`;
+    await this.send(command);
+
+    for (;;) {
+      const { bytes, head } = await this.reader.readLine();
+      if (isStatusHead(head)) {
+        const status = parseStatus(this.dec.decode(bytes));
+        if (!status) throw new ProtocolError('malformed status line during authentication');
+        if (!status.ok) throw new ManageSieveError(status);
+        return;
+      }
+      // Server challenge: a base64 string, sent quoted or as a literal.
+      const text = this.dec.decode(bytes);
+      const challengeB64 = text.startsWith('"') ? text.replace(/^"|"$/g, '') : text;
+      const response = await mechanism.next(fromBase64(challengeB64));
+      await this.send(quote(base64(response)));
+    }
   }
 
   private async sendLiteralCommand(prefix: string, content: string): Promise<void> {
