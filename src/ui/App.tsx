@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'preact/hooks';
 
 import { generate } from '../core/generator/generate.js';
-import type { SieveModel } from '../core/model/types.js';
+import type { Rule, SieveModel } from '../core/model/types.js';
+import { ImportDialog } from './components/ImportDialog.js';
 import { Preview } from './components/Preview.js';
 import { RuleCard } from './components/RuleCard.js';
 import { newRule, removeAt, uid, updateAt } from './model-ops.js';
@@ -37,9 +38,15 @@ const STARTER: SieveModel = {
 
 export function App() {
   const [model, setModel] = useState<SieveModel>(STARTER);
+  const [importing, setImporting] = useState(false);
   const script = useMemo(() => generate(model), [model]);
 
   const setRules = (rules: SieveModel['rules']) => setModel({ ...model, rules });
+
+  const loadImported = (rules: Rule[]) => {
+    setModel({ rules });
+    setImporting(false);
+  };
 
   return (
     <div class="app">
@@ -48,8 +55,12 @@ export function App() {
           <span class="mark" aria-hidden="true" />
           <span class="title">Sieve Builder</span>
         </div>
-        <span class="subtle">Dovecot filter rules</span>
+        <button class="btn-ghost" onClick={() => setImporting(true)}>
+          Import
+        </button>
       </header>
+
+      {importing && <ImportDialog onLoad={loadImported} onClose={() => setImporting(false)} />}
 
       <main class="layout">
         <section class="rules">
