@@ -37,13 +37,13 @@ export interface ConnectOverrides {
 }
 
 /**
- * Connect, upgrade to TLS when appropriate, and authenticate. `askPassword` is
- * invoked only when Thunderbird has no stored password for the account.
+ * Connect, upgrade to TLS when appropriate, and authenticate using the
+ * account's own persisted credentials (stored password, or an OAuth token).
+ * If no credential is available, throws a clear error rather than prompting.
  * `overrides` lets the user point at a non-default host/port.
  */
 export async function connect(
   account: ImapAccount,
-  askPassword: () => Promise<string | null>,
   overrides: ConnectOverrides = {},
 ): Promise<ManageSieveClient> {
   const api = maybeApi();
@@ -62,8 +62,12 @@ export async function connect(
       // OAuth account: get a bearer token from Thunderbird and use XOAUTH2.
       await client.authenticateOAuth2(cfg.username, await api.getOAuthToken(account.key));
     } else {
-      const password = (await api.getPassword(account.key)) ?? (await askPassword());
-      if (!password) throw new Error('A password is required to connect.');
+      const password = await api.getPassword(account.key);
+      if (!password) {
+        throw new Error(
+          'No saved password for this account. Open the account in Thunderbird and save its password, then try again.',
+        );
+      }
       await client.authenticate(cfg.username, password);
     }
     return client;

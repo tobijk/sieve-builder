@@ -28,7 +28,6 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
   const [accounts, setAccounts] = useState<ImapAccount[]>([]);
   const [selected, setSelected] = useState('');
   const [port, setPort] = useState(DEFAULT_SIEVE_PORT);
-  const [password, setPassword] = useState('');
 
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
   const [baseline, setBaseline] = useState<Baseline>(null);
@@ -72,8 +71,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     const account = accounts.find((a) => a.key === selected);
     if (!account) throw new Error('Select an account first.');
     const portOverride = Number.isFinite(port) && port > 0 ? port : DEFAULT_SIEVE_PORT;
-    const c = await connect(account, async () => password.trim() || null, { port: portOverride });
-    setPassword('');
+    const c = await connect(account, { port: portOverride });
     try {
       return await fn(c);
     } finally {
@@ -225,8 +223,6 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       });
     });
 
-  const isOAuth = accounts.find((a) => a.key === selected)?.oauth ?? false;
-
   const statusView = (s: Status) =>
     s ? <div class={`panel-status ${s.kind}`}>{s.text}</div> : null;
 
@@ -265,19 +261,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
             />
             <span class="unit">port</span>
           </span>
-          {isOAuth ? (
-            <span class="oauth-note grow">Uses your account’s sign-in (OAuth)</span>
-          ) : (
-            <input
-              class="control grow"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Password (only if not saved)"
-              value={password}
-              disabled={busy}
-              onInput={(e) => setPassword(e.currentTarget.value)}
-            />
-          )}
+          <span class="hint">Signs in with your mail account</span>
         </div>
 
         <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
