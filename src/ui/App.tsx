@@ -33,7 +33,16 @@ export function App() {
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <span class="mark" aria-hidden="true" />
+          <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="brandMark" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#4f46e5" />
+                <stop offset="1" stop-color="#ec4899" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#brandMark)" />
+            <path d="M18 22 h28 l-11 13 v9 l-6 3 v-12 z" fill="#fff" fill-opacity="0.95" />
+          </svg>
           <span class="title">Sieve Builder</span>
         </div>
         <button class="btn-ghost" disabled={!loaded} onClick={() => setImporting(true)}>

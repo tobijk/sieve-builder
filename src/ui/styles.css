@@ -86,10 +86,9 @@ body {
 }
 
 .mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ec4899));
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .title {
