@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.svbin
+.DS_Store
