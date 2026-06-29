@@ -54,6 +54,8 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     label: string,
     fn: () => Promise<Status | void>,
   ) => {
+    // An action on one card clears the other card's stale status.
+    (setter === setServerStatus ? setScriptStatus : setServerStatus)(null);
     setBusy(true);
     try {
       const result = await fn();
@@ -153,6 +155,7 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
     onLoad([]);
     setBaseline(null);
     setSaveName('');
+    setServerStatus(null);
     setScriptStatus({ kind: 'info', text: 'Started a new script. Name it, add rules, and Save.' });
   };
 
