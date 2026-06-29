@@ -20,6 +20,12 @@ export interface Transport {
   /** Upgrade the live connection to TLS (after the server's STARTTLS OK). */
   startTls(): Promise<void>;
 
+  /**
+   * Bytes received but not yet returned by read(), if the transport can report
+   * it. Used to detect data pipelined before a STARTTLS handshake.
+   */
+  bytesPending?(): number;
+
   /** Close the connection. */
   close(): Promise<void>;
 }

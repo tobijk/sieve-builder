@@ -89,6 +89,15 @@ export class ManageSieveClient {
     if (!this.caps.starttls) throw new ProtocolError('server does not advertise STARTTLS');
     await this.send('STARTTLS');
     await this.expectOk();
+
+    // STARTTLS injection defence: a well-behaved server sends nothing between
+    // the STARTTLS OK and the TLS handshake. Any buffered plaintext here would
+    // otherwise be read as if it were authenticated post-TLS data.
+    const pending = this.reader.bufferedBytes() + (this.transport.bytesPending?.() ?? 0);
+    if (pending > 0) {
+      throw new ProtocolError('unexpected data before TLS handshake (possible STARTTLS injection)');
+    }
+
     await this.transport.startTls();
     this.secure = true;
     const { status, data } = await this.readResponse();

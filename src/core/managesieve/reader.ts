@@ -39,6 +39,11 @@ export class ByteReader {
     private readonly maxLiteral = 10 * 1024 * 1024,
   ) {}
 
+  /** Bytes already read from the transport but not yet consumed. */
+  bufferedBytes(): number {
+    return this.buf.length;
+  }
+
   private async fill(): Promise<void> {
     if (this.eof) throw new ProtocolError('connection closed by server');
     const chunk = await this.transport.read();

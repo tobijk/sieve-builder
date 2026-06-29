@@ -20,7 +20,8 @@ are validated against Dovecot's `sievec` compiler.
 - [x] UI rule editor with live preview (`src/ui`, Preact)
 - [x] ManageSieve client over an injected transport (`src/core/managesieve`),
       with a Node transport (`src/platform/node`); verified against Dovecot
-- [ ] Parser: Sieve → model (round-trip)
+- [x] Parser: Sieve → model (`src/core/parser`), round-trip property-tested,
+      with graceful fallback; wired into the UI as Import
 - [ ] Thunderbird MailExtension shell
 
 ## Architecture

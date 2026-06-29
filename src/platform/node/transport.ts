@@ -64,6 +64,10 @@ export class NodeTransport implements Transport {
     for (const waiter of this.waiters.splice(0)) waiter(null);
   }
 
+  bytesPending(): number {
+    return this.queue.reduce((sum, chunk) => sum + chunk.length, 0);
+  }
+
   async read(): Promise<Uint8Array | null> {
     const queued = this.queue.shift();
     if (queued) return queued;
@@ -88,7 +92,17 @@ export class NodeTransport implements Transport {
       this.socket.removeAllListeners('close');
       this.socket.removeAllListeners('error');
 
-      const secure = tls.connect({ ...this.tlsOptions, socket: this.socket, servername: this.host });
+      // Explicit, secure defaults: verify the chain (rejectUnauthorized) and,
+      // because `servername` is set last, always check the certificate against
+      // the intended hostname. A caller may still opt out via tls options
+      // (e.g. a private CA), but never by accident.
+      const secure = tls.connect({
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: true,
+        ...this.tlsOptions,
+        socket: this.socket,
+        servername: this.host,
+      });
       secure.once('error', reject);
       secure.once('secureConnect', () => {
         secure.removeListener('error', reject);
