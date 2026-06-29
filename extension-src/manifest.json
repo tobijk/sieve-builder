@@ -1,0 +1,36 @@
+{
+  "manifest_version": 2,
+  "name": "Sieve Builder",
+  "version": "0.1.0",
+  "description": "Build, edit, and store Dovecot Sieve filters over ManageSieve.",
+  "author": "Aeltra",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sieve-builder@aeltra",
+      "strict_min_version": "128.0"
+    }
+  },
+  "icons": {
+    "32": "icon.svg",
+    "64": "icon.svg",
+    "128": "icon.svg"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_action": {
+    "default_title": "Sieve Builder",
+    "default_icon": "icon.svg"
+  },
+  "permissions": ["accountsRead"],
+  "experiment_apis": {
+    "sieve": {
+      "schema": "experiment/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["sieve"]],
+        "script": "experiment/api.js"
+      }
+    }
+  }
+}

@@ -2,9 +2,11 @@ import { useMemo, useState } from 'preact/hooks';
 
 import { generate } from '../core/generator/generate.js';
 import type { Rule, SieveModel } from '../core/model/types.js';
+import { isThunderbird } from '../platform/thunderbird/backend.js';
 import { ImportDialog } from './components/ImportDialog.js';
 import { Preview } from './components/Preview.js';
 import { RuleCard } from './components/RuleCard.js';
+import { ServerPanel } from './components/ServerPanel.js';
 import { newRule, removeAt, uid, updateAt } from './model-ops.js';
 
 const STARTER: SieveModel = {
@@ -83,6 +85,7 @@ export function App() {
         </section>
 
         <aside class="side">
+          {isThunderbird() && <ServerPanel script={script} onLoad={loadImported} />}
           <Preview script={script} />
         </aside>
       </main>

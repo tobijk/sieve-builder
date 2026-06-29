@@ -1,0 +1,55 @@
+[
+  {
+    "namespace": "sieve",
+    "functions": [
+      {
+        "name": "listAccounts",
+        "type": "function",
+        "async": true,
+        "parameters": []
+      },
+      {
+        "name": "getPassword",
+        "type": "function",
+        "async": true,
+        "parameters": [{ "name": "accountKey", "type": "string" }]
+      },
+      {
+        "name": "connect",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "host", "type": "string" },
+          { "name": "port", "type": "integer" }
+        ]
+      },
+      {
+        "name": "write",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "id", "type": "integer" },
+          { "name": "bytes", "type": "array", "items": { "type": "integer" } }
+        ]
+      },
+      {
+        "name": "read",
+        "type": "function",
+        "async": true,
+        "parameters": [{ "name": "id", "type": "integer" }]
+      },
+      {
+        "name": "startTls",
+        "type": "function",
+        "async": true,
+        "parameters": [{ "name": "id", "type": "integer" }]
+      },
+      {
+        "name": "close",
+        "type": "function",
+        "async": true,
+        "parameters": [{ "name": "id", "type": "integer" }]
+      }
+    ]
+  }
+]

@@ -130,6 +130,106 @@ body {
 .side {
   position: sticky;
   top: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* --- Server panel --- */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.script-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.script-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.script-list li:hover {
+  background: var(--surface-2);
+}
+
+.script-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.script-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.save-row {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+.panel-status {
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.panel-status.ok {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.panel-status.info {
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+
+.panel-status.error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
 }
 
 /* --- Rule card --- */
