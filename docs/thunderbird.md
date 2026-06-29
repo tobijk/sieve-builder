@@ -5,10 +5,16 @@ Packaging of Sieve Builder as a Thunderbird MailExtension (128 ESR and newer).
 ## Build
 
 ```bash
-npm run build:ext     # → dist-ext/
+npm run build:ext     # → dist-ext/  and  sieve-builder-<version>.xpi
 ```
 
-`dist-ext/` is a complete, loadable extension:
+This produces two things:
+
+- `dist-ext/` — the unpacked extension, for the dev "Load Temporary Add-on" flow.
+- `sieve-builder-<version>.xpi` — an installable package (a ZIP with
+  `manifest.json` at the root; sourcemaps excluded).
+
+`dist-ext/` contains:
 
 ```
 manifest.json         MV2 MailExtension + experiment_apis
@@ -21,13 +27,25 @@ experiment/
   api.js              privileged XPCOM: TCP + STARTTLS, accounts, password
 ```
 
-## Load it (temporary)
+## Load it
+
+**Temporary (recommended while developing) — no signing needed:**
 
 1. Thunderbird → **Tools → Developer Tools → Debug Add-ons** (`about:debugging`).
 2. **Load Temporary Add-on…** and pick `dist-ext/manifest.json`.
 3. Click the **Sieve Builder** toolbar button to open the editor in a tab.
 
-To distribute, zip the *contents* of `dist-ext/` (manifest at the zip root).
+Temporary add-ons are removed when Thunderbird restarts.
+
+**Install the .xpi (persistent):**
+
+1. **Settings → Add-ons and Themes** → gear icon → **Install Add-on From File…**
+2. Choose `sieve-builder-<version>.xpi`.
+
+Note: Thunderbird only installs **signed** extensions by default. For an unsigned
+local build, either keep using the temporary-add-on flow above, or set
+`xpinstall.signatures.required` to `false` in **Settings → General → Config
+Editor** (ESR/Developer builds), or sign the .xpi via addons.thunderbird.net.
 
 ## How it connects
 

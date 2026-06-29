@@ -3,3 +3,4 @@ dist/
 *.svbin
 .DS_Store
 dist-ext/
+*.xpi
