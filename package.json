@@ -2,6 +2,7 @@
   "name": "sieve-builder",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Graphical Sieve filter builder for Dovecot (Thunderbird MailExtension, native-ready)",
   "scripts": {
