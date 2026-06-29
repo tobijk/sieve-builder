@@ -88,7 +88,7 @@ export function App() {
               loaded={loaded}
             />
           )}
-          <Preview script={script} />
+          {loaded && <Preview script={script} />}
         </aside>
       </main>
     </div>
