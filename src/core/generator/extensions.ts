@@ -4,14 +4,7 @@
  * fail to compile; requiring too much is noise. We derive it from usage only.
  */
 
-import type {
-  Action,
-  ConditionMatch,
-  ConditionNode,
-  Rule,
-  SieveModel,
-  Test,
-} from '../model/types.js';
+import type { Action, ConditionNode, SieveModel, Test } from '../model/types.js';
 
 function nodeExtensions(node: ConditionNode, add: (ext: string) => void): void {
   if (node.type === 'group') {
@@ -69,10 +62,3 @@ export function requiredExtensions(model: SieveModel): string[] {
   // Deterministic ordering keeps generated scripts stable (clean diffs, stable tests).
   return [...set].sort();
 }
-
-/** Re-exported so the generator and parser agree on the allof/anyof mapping. */
-export function matchKeyword(match: ConditionMatch): 'allof' | 'anyof' {
-  return match === 'all' ? 'allof' : 'anyof';
-}
-
-export type { Rule };

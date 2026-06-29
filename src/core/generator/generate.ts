@@ -22,8 +22,9 @@ import type {
   SieveModel,
   Test,
 } from '../model/types.js';
+import { ADDRESS_PARTS, BODY_TRANSFORMS, GROUP_KEYWORD } from '../model/subset.js';
 import { sieveString, sieveStringList } from '../sieve/string.js';
-import { matchKeyword, requiredExtensions } from './extensions.js';
+import { requiredExtensions } from './extensions.js';
 
 // --- Safety helpers ---------------------------------------------------------
 // The generator must produce a valid, non-injectable script for ANY model,
@@ -42,8 +43,8 @@ function sieveNumber(value: number, min = 0): string {
   return String(Math.max(min, n));
 }
 
-const ADDRESS_PARTS = new Set(['all', 'localpart', 'domain']);
-const BODY_TRANSFORMS = new Set(['raw', 'text', 'content']);
+const ADDRESS_PART_SET: ReadonlySet<string> = new Set(ADDRESS_PARTS);
+const BODY_TRANSFORM_SET: ReadonlySet<string> = new Set(BODY_TRANSFORMS);
 
 const INDENT = '\t';
 const HEADER =
@@ -98,7 +99,7 @@ function generateGroup(group: ConditionGroup): string {
     // allof(x) == anyof(x) == x — collapse to keep output clean.
     expr = parts[0]!;
   } else {
-    expr = `${matchKeyword(group.match)}(${parts.join(', ')})`;
+    expr = `${GROUP_KEYWORD[group.match]}(${parts.join(', ')})`;
   }
   return group.negate ? `not ${expr}` : expr;
 }
@@ -133,7 +134,7 @@ function renderBodyTransform(
   transform: 'raw' | 'text' | 'content' | undefined,
   contentTypes: string[] | undefined,
 ): string {
-  if (!transform || !BODY_TRANSFORMS.has(transform)) return '';
+  if (!transform || !BODY_TRANSFORM_SET.has(transform)) return '';
   if (transform === 'content') {
     return ` :content ${sieveStringList(contentTypes ?? [''])}`;
   }
@@ -164,7 +165,7 @@ function matchArgs(test: {
 }
 
 function part(p: 'all' | 'localpart' | 'domain' | undefined): string {
-  return p && ADDRESS_PARTS.has(p) ? ` :${p}` : '';
+  return p && ADDRESS_PART_SET.has(p) ? ` :${p}` : '';
 }
 
 // --- Actions ----------------------------------------------------------------

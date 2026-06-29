@@ -9,23 +9,29 @@
  * RFC 5230 (vacation), RFC 5173 (body).
  */
 
+import {
+  ACTION_TYPES,
+  ADDRESS_PARTS,
+  BODY_TRANSFORMS,
+  COMPARATORS,
+  MATCH_TYPES,
+  RELATIONAL_OPS,
+} from './subset.js';
+
 /** How the value of a test is compared. Maps to Sieve match-type tags. */
-export type MatchType =
-  | 'is' // :is
-  | 'contains' // :contains
-  | 'matches' // :matches  (shell-style wildcards * ?)
-  | 'regex' // :regex     (requires "regex")
-  | 'count' // :count     (requires "relational")
-  | 'value'; // :value    (requires "relational")
+export type MatchType = (typeof MATCH_TYPES)[number];
 
 /** Comparator used for the match (RFC 4790). */
-export type Comparator = 'i;ascii-casemap' | 'i;octet' | 'i;ascii-numeric';
+export type Comparator = (typeof COMPARATORS)[number];
 
 /** Relational operator, used only with `count` / `value` match types. */
-export type RelationalOp = 'lt' | 'le' | 'eq' | 'ge' | 'gt' | 'ne';
+export type RelationalOp = (typeof RELATIONAL_OPS)[number];
 
 /** Which part of an address to test (RFC 5228 §2.7.4). */
-export type AddressPart = 'all' | 'localpart' | 'domain';
+export type AddressPart = (typeof ADDRESS_PARTS)[number];
+
+/** Body transform (RFC 5173). */
+export type BodyTransform = (typeof BODY_TRANSFORMS)[number];
 
 // --- Tests (conditions) -----------------------------------------------------
 
@@ -77,7 +83,7 @@ export interface ExistsTest extends TestBase {
 /** Tests the message body. Needs "body". */
 export interface BodyTest extends TestBase, ContentMatch {
   type: 'body';
-  transform?: 'raw' | 'text' | 'content';
+  transform?: BodyTransform;
   /** Content types when `transform` is `content`, e.g. ["text/plain"]. */
   contentTypes?: string[];
 }
@@ -144,6 +150,13 @@ export type Action =
   | StopAction
   | FlagAction
   | VacationAction;
+
+// Compile-time guard: ACTION_TYPES and the Action union must list the same
+// names, so the parser's membership check and the model can't drift apart.
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Expect<T extends true> = T;
+type _ActionTypesInSync = Expect<Equal<Action['type'], (typeof ACTION_TYPES)[number]>>;
 
 // --- Rules & script ---------------------------------------------------------
 

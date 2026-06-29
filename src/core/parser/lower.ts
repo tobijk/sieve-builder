@@ -19,6 +19,7 @@ import type {
   SieveModel,
   Test,
 } from '../model/types.js';
+import { ACTION_TYPES, ADDRESS_PARTS, KEYWORD_GROUP, MATCH_TYPES } from '../model/subset.js';
 import type { AstArg, AstCommand, AstTest } from './grammar.js';
 import type { Marker } from './lexer.js';
 
@@ -26,20 +27,9 @@ export interface ParseIssue {
   message: string;
 }
 
-const ACTION_NAMES = new Set([
-  'keep',
-  'discard',
-  'stop',
-  'fileinto',
-  'redirect',
-  'setflag',
-  'addflag',
-  'removeflag',
-  'vacation',
-]);
-
-const MATCH_TAGS = new Set(['is', 'contains', 'matches', 'regex', 'count', 'value']);
-const PART_TAGS = new Set(['all', 'localpart', 'domain']);
+const ACTION_NAMES: ReadonlySet<string> = new Set(ACTION_TYPES);
+const MATCH_TAGS: ReadonlySet<string> = new Set(MATCH_TYPES);
+const PART_TAGS: ReadonlySet<string> = new Set(ADDRESS_PARTS);
 
 /** Walks a leaf test's argument list, separating tags from positional strings. */
 interface LeafArgs {
@@ -186,7 +176,7 @@ function lowerNode(test: AstTest, issues: ParseIssue[]): ConditionNode | null {
       if (!node) return null;
       children.push(node);
     }
-    return { type: 'group', match: test.name === 'allof' ? 'all' : 'any', children };
+    return { type: 'group', match: KEYWORD_GROUP[test.name], children };
   }
   if (test.name === 'not') {
     const inner = lowerNode(test.tests[0]!, issues);
