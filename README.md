@@ -71,3 +71,7 @@ that check gracefully otherwise.
 `npm run test:integration` exercises the ManageSieve client against a real
 Dovecot server it starts in Docker (`docker/`), then tears it down. These tests
 are excluded from `npm test`, which stays offline.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
