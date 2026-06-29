@@ -3,10 +3,10 @@
   "name": "Sieve Builder",
   "version": "0.1.0",
   "description": "Build, edit, and store Dovecot Sieve filters over ManageSieve.",
-  "author": "Aeltra",
+  "author": "Tobias Koch",
   "browser_specific_settings": {
     "gecko": {
-      "id": "sieve-builder@aeltra.eu",
+      "id": "sieve-builder@tobijk",
       "strict_min_version": "128.0"
     }
   },
