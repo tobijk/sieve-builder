@@ -11,10 +11,26 @@
  *     contain newlines we emit a multi-line literal (`text:` ... `.`) instead.
  */
 
-/** Characters we refuse outright — they cannot be represented safely. */
+/**
+ * Characters we refuse outright — they cannot be represented safely.
+ *
+ * Sieve scripts are UTF-8 (RFC 5228 §2.7.2), so any Unicode content is fine as
+ * long as it encodes cleanly. JS strings are UTF-16, though, and can hold an
+ * unpaired surrogate; that has no UTF-8 encoding (TextEncoder substitutes
+ * U+FFFD), so we reject it rather than silently corrupt the script. NUL is
+ * disallowed outright.
+ */
 function assertSafe(value: string): void {
   if (value.includes('\0')) {
     throw new Error('Sieve strings cannot contain a NUL byte');
+  }
+  // `for...of` iterates by code point: a valid surrogate pair yields one
+  // code point above U+FFFF, so anything still in the surrogate range is lone.
+  for (const ch of value) {
+    const cp = ch.codePointAt(0)!;
+    if (cp >= 0xd800 && cp <= 0xdfff) {
+      throw new Error('Sieve strings cannot contain an unpaired surrogate');
+    }
   }
 }
 

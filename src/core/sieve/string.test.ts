@@ -20,6 +20,15 @@ test('NUL bytes are rejected', () => {
   assert.throws(() => sieveString('a\0b'), /NUL/);
 });
 
+test('valid Unicode, including astral characters, is allowed verbatim', () => {
+  assert.equal(sieveString('Müller café 😈'), '"Müller café 😈"');
+});
+
+test('unpaired surrogates are rejected (would be invalid UTF-8)', () => {
+  assert.throws(() => sieveString('a\uD800b'), /surrogate/);
+  assert.throws(() => sieveString('\uDC00'), /surrogate/);
+});
+
 test('newlines switch to a dot-stuffed multi-line literal', () => {
   const out = sieveString('line1\n.line2');
   assert.equal(out, 'text:\r\nline1\r\n..line2\r\n.\r\n');
