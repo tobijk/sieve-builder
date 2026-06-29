@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Sieve Builder",
-  "version": "0.1.3",
-  "description": "Build, edit, and store Dovecot Sieve filters over ManageSieve.",
+  "version": "0.1.4",
+  "description": "Build, edit, and store Sieve mail filters over ManageSieve — works with Dovecot and other ManageSieve servers.",
   "author": "Tobias Koch",
   "browser_specific_settings": {
     "gecko": {
