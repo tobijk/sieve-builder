@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { test } from 'node:test';
 
-import { ManageSieveClient, generate, type SieveModel } from '../../src/core/index.js';
+import { ManageSieveClient, ManageSieveError, generate, type SieveModel } from '../../src/core/index.js';
 import { NodeTransport } from '../../src/platform/node/transport.js';
 
 const HOST = process.env.MANAGESIEVE_HOST ?? '127.0.0.1';
@@ -79,6 +79,20 @@ test('store, activate, fetch (byte-identical), and delete a script', { skip }, a
     await client.setActive(null);
     await client.deleteScript('sb-it');
     assert.ok(!(await client.listScripts()).some((s) => s.name === 'sb-it'));
+  } finally {
+    await client.logout();
+  }
+});
+
+test('a fresh server has no scripts and getScript reports a missing one', { skip }, async () => {
+  const client = await authedClient();
+  try {
+    // getScript on a name that doesn't exist must throw (the empty-server Save
+    // path relies on catching this as "doesn't exist").
+    await assert.rejects(
+      () => client.getScript('definitely-not-here'),
+      (err: unknown) => err instanceof ManageSieveError,
+    );
   } finally {
     await client.logout();
   }
