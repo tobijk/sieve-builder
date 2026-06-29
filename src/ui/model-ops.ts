@@ -1,8 +1,17 @@
 /** Small immutable helpers for editing the model from UI event handlers. */
-import type { Action, Rule } from '../core/model/types.js';
+import type { Action, ConditionGroup, Rule, Test } from '../core/model/types.js';
 
 export function uid(): string {
   return crypto.randomUUID();
+}
+
+export function newTest(): Test {
+  return { type: 'header', fields: ['Subject'], match: 'contains', values: [''] };
+}
+
+/** A fresh sub-group defaults to OR — the usual reason to nest inside an AND. */
+export function newGroup(): ConditionGroup {
+  return { type: 'group', match: 'any', children: [newTest()] };
 }
 
 export function newRule(): Rule {
@@ -10,8 +19,7 @@ export function newRule(): Rule {
     id: uid(),
     name: 'New rule',
     enabled: true,
-    match: 'all',
-    tests: [{ type: 'header', fields: ['Subject'], match: 'contains', values: [''] }],
+    root: { type: 'group', match: 'all', children: [newTest()] },
     actions: [defaultAction('fileinto')],
   };
 }

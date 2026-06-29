@@ -147,8 +147,24 @@ export type Action =
 
 // --- Rules & script ---------------------------------------------------------
 
-/** How a rule's multiple tests are combined: `all` => allof, `any` => anyof. */
+/** How a group's children are combined: `all` => allof, `any` => anyof. */
 export type ConditionMatch = 'all' | 'any';
+
+/**
+ * A boolean grouping of conditions. Groups nest arbitrarily, which mirrors
+ * Sieve's own `allof`/`anyof` nesting and lets a rule express mixed logic such
+ * as `(A or B) and C`. A group with no children is unconditional.
+ */
+export interface ConditionGroup {
+  type: 'group';
+  match: ConditionMatch;
+  /** Negate the whole group: `not allof(...)`. */
+  negate?: boolean;
+  children: ConditionNode[];
+}
+
+/** A node in a rule's condition tree: either a leaf test or a sub-group. */
+export type ConditionNode = Test | ConditionGroup;
 
 export interface Rule {
   /** Stable identifier (UI keys, reordering). Not emitted to Sieve. */
@@ -156,11 +172,8 @@ export interface Rule {
   /** Human label, preserved via a `# rule:[name]` metadata comment. */
   name: string;
   enabled: boolean;
-  match: ConditionMatch;
-  /** Negate the whole condition group: `if not allof(...)`. */
-  negateGroup?: boolean;
-  /** Empty => the rule is unconditional (actions always run). */
-  tests: Test[];
+  /** The condition tree. An empty root => the rule is unconditional. */
+  root: ConditionGroup;
   actions: Action[];
 }
 

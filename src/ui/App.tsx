@@ -10,15 +10,25 @@ const STARTER: SieveModel = {
   rules: [
     {
       id: uid(),
-      name: 'Newsletters',
+      name: 'Finance',
       enabled: true,
-      match: 'any',
-      tests: [
-        { type: 'header', fields: ['List-Id'], match: 'contains', values: ['.list.'] },
-        { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['newsletter@'] },
-      ],
+      root: {
+        type: 'group',
+        match: 'all',
+        children: [
+          { type: 'header', fields: ['Subject'], match: 'contains', values: ['statement'] },
+          {
+            type: 'group',
+            match: 'any',
+            children: [
+              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybank.com'] },
+              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybroker.com'] },
+            ],
+          },
+        ],
+      },
       actions: [
-        { type: 'fileinto', mailbox: 'INBOX/Newsletters', create: true },
+        { type: 'fileinto', mailbox: 'INBOX/Finance', create: true },
         { type: 'stop' },
       ],
     },

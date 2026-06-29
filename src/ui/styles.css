@@ -207,6 +207,28 @@ body {
   color: var(--text-muted);
 }
 
+/* Nested condition group — inset with an accent rail to signal depth. */
+.subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 14px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.group-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.group-remove {
+  margin-left: auto;
+}
+
 .row {
   display: flex;
   align-items: center;

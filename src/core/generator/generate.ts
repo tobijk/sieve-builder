@@ -14,6 +14,8 @@
 import type {
   Action,
   Comparator,
+  ConditionGroup,
+  ConditionNode,
   MatchType,
   RelationalOp,
   Rule,
@@ -54,21 +56,31 @@ function generateRule(rule: Rule): string {
   const body = rule.actions.map((a) => INDENT + generateAction(a)).join('\n');
 
   // Unconditional rule: actions run for every message, no `if` wrapper.
-  if (rule.tests.length === 0) {
+  if (rule.root.children.length === 0) {
     return `${marker}\n${rule.actions.map(generateAction).join('\n')}`;
   }
 
-  return `${marker}\nif ${generateCondition(rule)}\n{\n${body}\n}`;
+  return `${marker}\nif ${generateGroup(rule.root)}\n{\n${body}\n}`;
 }
 
-function generateCondition(rule: Rule): string {
-  const rendered = rule.tests.map(generateTest);
-  let condition =
-    rendered.length === 1
-      ? rendered[0]!
-      : `${matchKeyword(rule.match)}(${rendered.join(', ')})`;
-  if (rule.negateGroup) condition = `not ${condition}`;
-  return condition;
+function generateNode(node: ConditionNode): string {
+  return node.type === 'group' ? generateGroup(node) : generateTest(node);
+}
+
+/** Renders a condition group as a Sieve boolean expression, recursing on sub-groups. */
+function generateGroup(group: ConditionGroup): string {
+  const parts = group.children.map(generateNode);
+  let expr: string;
+  if (parts.length === 0) {
+    // Degenerate empty group: allof() is true, anyof() is false.
+    expr = group.match === 'all' ? 'true' : 'false';
+  } else if (parts.length === 1) {
+    // allof(x) == anyof(x) == x — collapse to keep output clean.
+    expr = parts[0]!;
+  } else {
+    expr = `${matchKeyword(group.match)}(${parts.join(', ')})`;
+  }
+  return group.negate ? `not ${expr}` : expr;
 }
 
 // --- Tests ------------------------------------------------------------------

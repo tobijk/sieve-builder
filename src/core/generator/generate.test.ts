@@ -1,22 +1,42 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { SieveModel } from '../model/types.js';
+import type {
+  Action,
+  ConditionMatch,
+  ConditionNode,
+  Rule,
+  SieveModel,
+} from '../model/types.js';
 import { requiredExtensions } from './extensions.js';
 import { generate } from './generate.js';
 import { compileSieve, hasSievec } from './sievec.js';
 
 const sievecSkip = hasSievec() ? false : 'sievec not installed (apt install dovecot-sieve)';
 
-function rule(partial: Partial<SieveModel['rules'][number]>): SieveModel['rules'][number] {
+interface RuleSpec {
+  id?: string;
+  name?: string;
+  enabled?: boolean;
+  match?: ConditionMatch;
+  negate?: boolean;
+  /** Root-group children (tests and/or sub-groups). */
+  tests?: ConditionNode[];
+  actions?: Action[];
+}
+
+function rule(spec: RuleSpec): Rule {
   return {
-    id: 'r1',
-    name: 'Rule',
-    enabled: true,
-    match: 'all',
-    tests: [],
-    actions: [],
-    ...partial,
+    id: spec.id ?? 'r1',
+    name: spec.name ?? 'Rule',
+    enabled: spec.enabled ?? true,
+    root: {
+      type: 'group',
+      match: spec.match ?? 'all',
+      children: spec.tests ?? [],
+      ...(spec.negate ? { negate: true } : {}),
+    },
+    actions: spec.actions ?? [],
   };
 }
 
@@ -68,7 +88,7 @@ test('anyof and group negation', () => {
     rules: [
       rule({
         match: 'any',
-        negateGroup: true,
+        negate: true,
         tests: [
           { type: 'exists', fields: ['X-Spam'] },
           { type: 'header', fields: ['Subject'], match: 'contains', values: ['ad'] },
@@ -78,6 +98,46 @@ test('anyof and group negation', () => {
     ],
   });
   assert.match(out, /if not anyof\(exists "X-Spam", header :contains "Subject" "ad"\)/);
+});
+
+test('nested groups produce mixed allof/anyof', () => {
+  const out = generate({
+    rules: [
+      rule({
+        name: 'Finance',
+        match: 'all',
+        tests: [
+          { type: 'header', fields: ['Subject'], match: 'contains', values: ['statement'] },
+          {
+            type: 'group',
+            match: 'any',
+            children: [
+              { type: 'address', part: 'all', fields: ['From'], match: 'is', values: ['bank@x'] },
+              { type: 'address', part: 'all', fields: ['From'], match: 'is', values: ['broker@y'] },
+            ],
+          },
+        ],
+        actions: [{ type: 'keep' }],
+      }),
+    ],
+  });
+  assert.match(
+    out,
+    /if allof\(header :contains "Subject" "statement", anyof\(address :all :is "From" "bank@x", address :all :is "From" "broker@y"\)\)/,
+  );
+});
+
+test('a single-child group collapses (no redundant allof)', () => {
+  const out = generate({
+    rules: [
+      rule({
+        tests: [{ type: 'group', match: 'all', children: [{ type: 'exists', fields: ['X-Y'] }] }],
+        actions: [{ type: 'keep' }],
+      }),
+    ],
+  });
+  assert.match(out, /if exists "X-Y"\n/);
+  assert.doesNotMatch(out, /allof|anyof/);
 });
 
 test('unconditional rule emits actions without an if-block', () => {
@@ -157,6 +217,15 @@ test('generated scripts compile under sievec', { skip: sievecSkip }, () => {
           { type: 'body', transform: 'text', match: 'contains', values: ['lottery'] },
           { type: 'header', negate: true, fields: ['Subject'], match: 'regex', values: ['^re:'] },
           { type: 'header', fields: ['X-Priority'], match: 'value', relation: 'le', comparator: 'i;ascii-numeric', values: ['2'] },
+          {
+            type: 'group',
+            match: 'all',
+            negate: true,
+            children: [
+              { type: 'exists', fields: ['X-Loop'] },
+              { type: 'header', fields: ['Precedence'], match: 'is', values: ['bulk'] },
+            ],
+          },
         ],
         actions: [
           { type: 'fileinto', mailbox: 'INBOX/Filtered', create: true, copy: true },

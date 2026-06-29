@@ -4,7 +4,22 @@
  * fail to compile; requiring too much is noise. We derive it from usage only.
  */
 
-import type { Action, ConditionMatch, Rule, SieveModel, Test } from '../model/types.js';
+import type {
+  Action,
+  ConditionMatch,
+  ConditionNode,
+  Rule,
+  SieveModel,
+  Test,
+} from '../model/types.js';
+
+function nodeExtensions(node: ConditionNode, add: (ext: string) => void): void {
+  if (node.type === 'group') {
+    for (const child of node.children) nodeExtensions(child, add);
+  } else {
+    testExtensions(node, add);
+  }
+}
 
 function testExtensions(test: Test, add: (ext: string) => void): void {
   switch (test.type) {
@@ -48,7 +63,7 @@ export function requiredExtensions(model: SieveModel): string[] {
   const add = (ext: string) => set.add(ext);
   for (const rule of model.rules) {
     if (!rule.enabled) continue;
-    for (const test of rule.tests) testExtensions(test, add);
+    nodeExtensions(rule.root, add);
     for (const action of rule.actions) actionExtensions(action, add);
   }
   // Deterministic ordering keeps generated scripts stable (clean diffs, stable tests).
