@@ -29,18 +29,28 @@ export function listAccounts(): Promise<ImapAccount[]> {
   return api.listAccounts();
 }
 
+/** User overrides applied on top of the values derived from the account. */
+export interface ConnectOverrides {
+  host?: string;
+  port?: number;
+}
+
 /**
  * Connect, upgrade to TLS when appropriate, and authenticate. `askPassword` is
  * invoked only when Thunderbird has no stored password for the account.
+ * `overrides` lets the user point at a non-default host/port.
  */
 export async function connect(
   account: ImapAccount,
   askPassword: () => Promise<string | null>,
+  overrides: ConnectOverrides = {},
 ): Promise<ManageSieveClient> {
   const api = maybeApi();
   if (!api) throw new Error('not running inside Thunderbird');
 
   const cfg = deriveSieveConfig(account);
+  if (overrides.host) cfg.host = overrides.host;
+  if (overrides.port) cfg.port = overrides.port;
   const password = (await api.getPassword(account.key)) ?? (await askPassword());
   if (!password) throw new Error('A password is required to connect.');
 

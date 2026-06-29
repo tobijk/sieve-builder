@@ -4,7 +4,7 @@ import type { ManageSieveClient, ScriptInfo } from '../../core/managesieve/index
 import type { Rule } from '../../core/model/types.js';
 import { parseSieve } from '../../core/parser/parse.js';
 import { connect, listAccounts } from '../../platform/thunderbird/backend.js';
-import type { ImapAccount } from '../../platform/thunderbird/config.js';
+import { DEFAULT_SIEVE_PORT, type ImapAccount } from '../../platform/thunderbird/config.js';
 import { summarizeParse } from '../parse-summary.js';
 
 interface Props {
@@ -22,6 +22,7 @@ export function ServerPanel({ script, onLoad }: Props) {
   const [client, setClient] = useState<ManageSieveClient | null>(null);
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
   const [password, setPassword] = useState('');
+  const [port, setPort] = useState(DEFAULT_SIEVE_PORT);
   const [saveName, setSaveName] = useState('sieve-builder');
   const [activate, setActivate] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,7 +55,8 @@ export function ServerPanel({ script, onLoad }: Props) {
     run('Connect', async () => {
       const account = accounts.find((a) => a.key === selected);
       if (!account) return { kind: 'error', text: 'Select an account first.' };
-      const c = await connect(account, async () => password.trim() || null);
+      const portOverride = Number.isFinite(port) && port > 0 ? port : DEFAULT_SIEVE_PORT;
+      const c = await connect(account, async () => password.trim() || null, { port: portOverride });
       setClient(c);
       setPassword('');
       await refresh(c);
@@ -131,6 +133,19 @@ export function ServerPanel({ script, onLoad }: Props) {
             ))}
           </select>
           <div class="row">
+            <span class="size-input">
+              <input
+                class="control"
+                type="number"
+                min="1"
+                max="65535"
+                value={port}
+                disabled={busy}
+                aria-label="ManageSieve port"
+                onInput={(e) => setPort(Number(e.currentTarget.value))}
+              />
+              <span class="unit">port</span>
+            </span>
             <input
               class="control grow"
               type="password"
