@@ -14,6 +14,8 @@ export interface ConnectOptions {
   port?: number;
   /** TLS options applied during startTls() (e.g. servername, ca). */
   tls?: tls.ConnectionOptions;
+  /** Abort the initial TCP connect if it takes longer than this (default 15s). */
+  connectTimeoutMs?: number;
 }
 
 export class NodeTransport implements Transport {
@@ -22,7 +24,7 @@ export class NodeTransport implements Transport {
   private readonly tlsOptions: tls.ConnectionOptions;
 
   private queue: Uint8Array[] = [];
-  private waiters: Array<(v: Uint8Array | null) => void> = [];
+  private waiters: Array<{ resolve: (v: Uint8Array | null) => void; reject: (e: Error) => void }> = [];
   private ended = false;
   private failure: Error | null = null;
 
@@ -35,11 +37,19 @@ export class NodeTransport implements Transport {
 
   static connect(options: ConnectOptions): Promise<NodeTransport> {
     const port = options.port ?? 4190;
+    const connectTimeoutMs = options.connectTimeoutMs ?? 15_000;
     return new Promise((resolve, reject) => {
       const socket = net.connect({ host: options.host, port });
-      socket.once('error', reject);
+      socket.setTimeout(connectTimeoutMs);
+      const onError = (err: Error) => {
+        socket.destroy();
+        reject(err);
+      };
+      socket.once('error', onError);
+      socket.once('timeout', () => onError(new Error(`connection to ${options.host}:${port} timed out`)));
       socket.once('connect', () => {
-        socket.removeListener('error', reject);
+        socket.setTimeout(0); // disable the connect-phase timeout
+        socket.removeListener('error', onError);
         resolve(new NodeTransport(socket, options.host, options.tls ?? {}));
       });
     });
@@ -49,7 +59,7 @@ export class NodeTransport implements Transport {
     socket.on('data', (chunk: Buffer) => {
       const bytes = new Uint8Array(chunk);
       const waiter = this.waiters.shift();
-      if (waiter) waiter(bytes);
+      if (waiter) waiter.resolve(bytes);
       else this.queue.push(bytes);
     });
     socket.on('end', () => this.finish(null));
@@ -61,7 +71,12 @@ export class NodeTransport implements Transport {
     if (this.ended) return;
     this.ended = true;
     if (err) this.failure = err;
-    for (const waiter of this.waiters.splice(0)) waiter(null);
+    // Surface a socket error to anyone currently awaiting read(); a clean close
+    // resolves them with null (EOF).
+    for (const waiter of this.waiters.splice(0)) {
+      if (err) waiter.reject(err);
+      else waiter.resolve(null);
+    }
   }
 
   bytesPending(): number {
@@ -75,7 +90,7 @@ export class NodeTransport implements Transport {
       if (this.failure) throw this.failure;
       return null;
     }
-    return new Promise((resolve) => this.waiters.push(resolve));
+    return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
   }
 
   write(data: Uint8Array): Promise<void> {

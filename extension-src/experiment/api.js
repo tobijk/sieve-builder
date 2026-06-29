@@ -28,13 +28,24 @@ const BINARY_OUTPUT = '@mozilla.org/binaryoutputstream;1';
 const connections = new Map();
 let nextId = 1;
 
+// Deliver a chunk (or null for EOF) to a waiting read() or buffer it.
 function deliver(state, value) {
   if (state.pending) {
-    const resolve = state.pending;
+    const { resolve } = state.pending;
     state.pending = null;
     resolve(value);
   } else {
     state.queue.push(value);
+  }
+}
+
+// Surface a socket error to a waiting read() so EOF and failure are distinct.
+function deliverError(state, error) {
+  state.failure = error;
+  if (state.pending) {
+    const { reject } = state.pending;
+    state.pending = null;
+    reject(error);
   }
 }
 
@@ -45,14 +56,14 @@ function armReader(state) {
         try {
           const available = stream.available();
           if (available === 0) {
-            deliver(state, null); // EOF
+            deliver(state, null); // clean EOF
             return;
           }
           const bytes = state.binaryIn.readByteArray(available);
           deliver(state, bytes);
           armReader(state);
-        } catch (_e) {
-          deliver(state, null); // closed / error
+        } catch (e) {
+          deliverError(state, e instanceof Error ? e : new Error(String(e)));
         }
       },
     },
@@ -124,7 +135,16 @@ var sieve = class extends ExtensionCommon.ExtensionAPI {
           binaryOut.setOutputStream(out);
 
           const id = nextId++;
-          const state = { transport, out, asyncIn, binaryIn, binaryOut, queue: [], pending: null };
+          const state = {
+            transport,
+            out,
+            asyncIn,
+            binaryIn,
+            binaryOut,
+            queue: [],
+            pending: null,
+            failure: null,
+          };
           connections.set(id, state);
           armReader(state);
           return id;
@@ -141,14 +161,20 @@ var sieve = class extends ExtensionCommon.ExtensionAPI {
           const state = connections.get(id);
           if (!state) throw new Error(`unknown connection ${id}`);
           if (state.queue.length > 0) return state.queue.shift();
-          return new Promise((resolve) => {
-            state.pending = resolve;
+          if (state.failure) throw state.failure;
+          return new Promise((resolve, reject) => {
+            state.pending = { resolve, reject };
           });
         },
 
         async startTls(id) {
           const state = connections.get(id);
           if (!state) throw new Error(`unknown connection ${id}`);
+          // STARTTLS injection defence: nothing should be buffered before the
+          // handshake; data here would otherwise be read as post-TLS bytes.
+          if (state.queue.length > 0) {
+            throw new Error('unexpected data before TLS handshake (possible STARTTLS injection)');
+          }
           await startTlsUpgrade(state.transport);
         },
 
@@ -156,6 +182,12 @@ var sieve = class extends ExtensionCommon.ExtensionAPI {
           const state = connections.get(id);
           if (!state) return;
           connections.delete(id);
+          // Unblock a read() still awaiting on this connection.
+          if (state.pending) {
+            const { resolve } = state.pending;
+            state.pending = null;
+            resolve(null);
+          }
           try {
             state.binaryIn.close();
           } catch (_e) {

@@ -46,8 +46,13 @@ export async function connect(
 
   const transport = await ExperimentTransport.connect(cfg.host, cfg.port);
   const client = new ManageSieveClient(transport, { requireTls: cfg.starttls });
-  await client.connect();
-  if (cfg.starttls) await client.startTls();
-  await client.authenticate(cfg.username, password);
-  return client;
+  try {
+    await client.connect();
+    if (cfg.starttls) await client.startTls();
+    await client.authenticate(cfg.username, password);
+    return client;
+  } catch (err) {
+    await client.close().catch(() => {}); // don't leak the socket on a failed handshake
+    throw err;
+  }
 }

@@ -60,6 +60,8 @@ export class ManageSieveClient {
   private readonly dec = new TextDecoder('utf-8');
   private secure = false;
   private caps: Capabilities = emptyCapabilities();
+  /** Serialises commands so they never interleave on the shared reader. */
+  private chain: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly transport: Transport,
@@ -77,119 +79,159 @@ export class ManageSieveClient {
   }
 
   /** Read the server greeting and its advertised capabilities. */
-  async connect(): Promise<void> {
-    const { status, data } = await this.readResponse();
-    if (!status.ok) throw new ManageSieveError(status);
-    this.caps = this.parseCapabilities(data);
+  connect(): Promise<void> {
+    return this.serialize(async () => {
+      const { status, data } = await this.readResponse();
+      if (!status.ok) throw new ManageSieveError(status);
+      this.caps = this.parseCapabilities(data);
+    });
   }
 
   /** Perform STARTTLS, upgrade the transport, and re-read capabilities. */
-  async startTls(): Promise<void> {
-    if (this.secure) return;
-    if (!this.caps.starttls) throw new ProtocolError('server does not advertise STARTTLS');
-    await this.send('STARTTLS');
-    await this.expectOk();
+  startTls(): Promise<void> {
+    return this.serialize(async () => {
+      if (this.secure) return;
+      if (!this.caps.starttls) throw new ProtocolError('server does not advertise STARTTLS');
+      await this.send('STARTTLS');
+      await this.expectOk();
 
-    // STARTTLS injection defence: a well-behaved server sends nothing between
-    // the STARTTLS OK and the TLS handshake. Any buffered plaintext here would
-    // otherwise be read as if it were authenticated post-TLS data.
-    const pending = this.reader.bufferedBytes() + (this.transport.bytesPending?.() ?? 0);
-    if (pending > 0) {
-      throw new ProtocolError('unexpected data before TLS handshake (possible STARTTLS injection)');
-    }
+      // STARTTLS injection defence: a well-behaved server sends nothing between
+      // the STARTTLS OK and the TLS handshake. Any buffered plaintext here would
+      // otherwise be read as if it were authenticated post-TLS data.
+      const pending = this.reader.bufferedBytes() + (this.transport.bytesPending?.() ?? 0);
+      if (pending > 0) {
+        throw new ProtocolError('unexpected data before TLS handshake (possible STARTTLS injection)');
+      }
 
-    await this.transport.startTls();
-    this.secure = true;
-    const { status, data } = await this.readResponse();
-    if (!status.ok) throw new ManageSieveError(status);
-    this.caps = this.parseCapabilities(data);
+      await this.transport.startTls();
+      this.secure = true;
+      const { status, data } = await this.readResponse();
+      if (!status.ok) throw new ManageSieveError(status);
+      this.caps = this.parseCapabilities(data);
+    });
   }
 
   /** Authenticate with SASL PLAIN. */
-  async authenticate(username: string, password: string): Promise<void> {
-    if (this.options.requireTls !== false && !this.secure) {
-      throw new ProtocolError(
-        'refusing to send credentials over an insecure connection; call startTls() first',
-      );
-    }
-    if (this.caps.sasl.size > 0 && !this.caps.sasl.has('PLAIN')) {
-      throw new ProtocolError('server does not offer SASL PLAIN');
-    }
-    // SASL PLAIN = authzid <NUL> authcid <NUL> passwd, with an empty authzid.
-    const NUL = String.fromCharCode(0);
-    const credentials = this.enc.encode(`${NUL}${username}${NUL}${password}`);
-    await this.send(`AUTHENTICATE "PLAIN" ${quote(base64(credentials))}`);
-    const { status, data } = await this.readResponse();
-    if (!status.ok) throw new ManageSieveError(status);
-    if (data.length > 0) this.caps = this.parseCapabilities(data); // some servers re-issue caps
+  authenticate(username: string, password: string): Promise<void> {
+    return this.serialize(async () => {
+      if (this.options.requireTls !== false && !this.secure) {
+        throw new ProtocolError(
+          'refusing to send credentials over an insecure connection; call startTls() first',
+        );
+      }
+      if (this.caps.sasl.size > 0 && !this.caps.sasl.has('PLAIN')) {
+        throw new ProtocolError('server does not offer SASL PLAIN');
+      }
+      // SASL PLAIN = authzid <NUL> authcid <NUL> passwd, with an empty authzid.
+      const NUL = String.fromCharCode(0);
+      const credentials = this.enc.encode(`${NUL}${username}${NUL}${password}`);
+      await this.send(`AUTHENTICATE "PLAIN" ${quote(base64(credentials))}`);
+      const { status, data } = await this.readResponse();
+      if (!status.ok) throw new ManageSieveError(status);
+      if (data.length > 0) this.caps = this.parseCapabilities(data); // some servers re-issue caps
+    });
   }
 
   /** List stored scripts and which one (if any) is active. */
-  async listScripts(): Promise<ScriptInfo[]> {
-    await this.send('LISTSCRIPTS');
-    const { status, data } = await this.readResponse();
-    if (!status.ok) throw new ManageSieveError(status);
-    const scripts: ScriptInfo[] = [];
-    for (const line of data) {
-      const parsed = parseListLine(this.dec.decode(line));
-      if (parsed) scripts.push(parsed);
-    }
-    return scripts;
+  listScripts(): Promise<ScriptInfo[]> {
+    return this.serialize(async () => {
+      await this.send('LISTSCRIPTS');
+      const { status, data } = await this.readResponse();
+      if (!status.ok) throw new ManageSieveError(status);
+      const scripts: ScriptInfo[] = [];
+      for (const line of data) {
+        const parsed = parseListLine(this.dec.decode(line));
+        if (parsed) scripts.push(parsed);
+      }
+      return scripts;
+    });
   }
 
   /** Fetch a script's source. */
-  async getScript(name: string): Promise<string> {
-    await this.send(`GETSCRIPT ${quote(name)}`);
-    const { status, data } = await this.readResponse();
-    if (!status.ok) throw new ManageSieveError(status);
-    return data.length > 0 ? this.dec.decode(data[0]!) : '';
+  getScript(name: string): Promise<string> {
+    return this.serialize(async () => {
+      await this.send(`GETSCRIPT ${quote(name)}`);
+      const { status, data } = await this.readResponse();
+      if (!status.ok) throw new ManageSieveError(status);
+      return data.length > 0 ? this.dec.decode(data[0]!) : '';
+    });
   }
 
   /** Upload (create or replace) a script. Returns any server warnings. */
-  async putScript(name: string, content: string): Promise<PutResult> {
-    await this.sendLiteralCommand(`PUTSCRIPT ${quote(name)}`, content);
-    return this.readPutResult();
+  putScript(name: string, content: string): Promise<PutResult> {
+    return this.serialize(async () => {
+      await this.sendLiteralCommand(`PUTSCRIPT ${quote(name)}`, content);
+      return this.readPutResult();
+    });
   }
 
   /** Validate a script without storing it. Throws on a compile error. */
-  async checkScript(content: string): Promise<PutResult> {
-    await this.sendLiteralCommand('CHECKSCRIPT', content);
-    return this.readPutResult();
+  checkScript(content: string): Promise<PutResult> {
+    return this.serialize(async () => {
+      await this.sendLiteralCommand('CHECKSCRIPT', content);
+      return this.readPutResult();
+    });
   }
 
   /** Set the active script, or pass `null` to deactivate all scripts. */
-  async setActive(name: string | null): Promise<void> {
-    await this.send(`SETACTIVE ${quote(name ?? '')}`);
-    await this.expectOk();
+  setActive(name: string | null): Promise<void> {
+    return this.serialize(async () => {
+      await this.send(`SETACTIVE ${quote(name ?? '')}`);
+      await this.expectOk();
+    });
   }
 
-  async deleteScript(name: string): Promise<void> {
-    await this.send(`DELETESCRIPT ${quote(name)}`);
-    await this.expectOk();
+  deleteScript(name: string): Promise<void> {
+    return this.serialize(async () => {
+      await this.send(`DELETESCRIPT ${quote(name)}`);
+      await this.expectOk();
+    });
   }
 
-  async renameScript(from: string, to: string): Promise<void> {
-    await this.send(`RENAMESCRIPT ${quote(from)} ${quote(to)}`);
-    await this.expectOk();
+  renameScript(from: string, to: string): Promise<void> {
+    return this.serialize(async () => {
+      await this.send(`RENAMESCRIPT ${quote(from)} ${quote(to)}`);
+      await this.expectOk();
+    });
   }
 
-  async noop(): Promise<void> {
-    await this.send('NOOP');
-    await this.expectOk();
+  noop(): Promise<void> {
+    return this.serialize(async () => {
+      await this.send('NOOP');
+      await this.expectOk();
+    });
   }
 
   /** Log out and close the connection. */
   async logout(): Promise<void> {
-    await this.send('LOGOUT');
     try {
-      await this.expectOk();
-    } catch {
-      // The server may simply drop the connection after LOGOUT.
+      await this.serialize(async () => {
+        await this.send('LOGOUT');
+        try {
+          await this.expectOk();
+        } catch {
+          // The server may simply drop the connection after LOGOUT.
+        }
+      });
+    } finally {
+      await this.transport.close();
     }
+  }
+
+  /** Close the transport immediately, without LOGOUT — for error cleanup. */
+  async close(): Promise<void> {
     await this.transport.close();
   }
 
   // --- internals ------------------------------------------------------------
+
+  /** Run `op` after all previously-queued commands, success or failure. */
+  private serialize<T>(op: () => Promise<T>): Promise<T> {
+    const result = this.chain.then(op, op);
+    const swallow = () => undefined;
+    this.chain = result.then(swallow, swallow); // keep the chain alive, no unhandled rejections
+    return result;
+  }
 
   private async send(command: string): Promise<void> {
     await this.transport.write(this.enc.encode(`${command}\r\n`));

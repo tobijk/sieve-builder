@@ -58,7 +58,9 @@ export function ServerPanel({ script, onLoad }: Props) {
       setClient(c);
       setPassword('');
       await refresh(c);
-      return { kind: 'ok', text: `Connected to ${account.host}.` };
+      return c.isSecure
+        ? { kind: 'ok', text: `Connected to ${account.host} (TLS).` }
+        : { kind: 'info', text: `Connected to ${account.host} — warning: no TLS, credentials were sent in the clear.` };
     });
 
   const doDisconnect = () =>
