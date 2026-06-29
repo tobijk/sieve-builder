@@ -8,40 +8,16 @@ import { ImportDialog } from './components/ImportDialog.js';
 import { Preview } from './components/Preview.js';
 import { RuleCard } from './components/RuleCard.js';
 import { ServerPanel } from './components/ServerPanel.js';
-import { newRule, removeAt, uid, updateAt } from './model-ops.js';
-
-const STARTER: SieveModel = {
-  rules: [
-    {
-      id: uid(),
-      name: 'Finance',
-      enabled: true,
-      root: {
-        type: 'group',
-        match: 'all',
-        children: [
-          { type: 'header', fields: ['Subject'], match: 'contains', values: ['statement'], comparator: 'i;octet' },
-          {
-            type: 'group',
-            match: 'any',
-            children: [
-              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybank.com'], comparator: 'i;octet' },
-              { type: 'address', part: 'all', fields: ['From'], match: 'contains', values: ['@mybroker.com'], comparator: 'i;octet' },
-            ],
-          },
-        ],
-      },
-      actions: [
-        { type: 'fileinto', mailbox: 'INBOX/Finance', create: true },
-        { type: 'stop' },
-      ],
-    },
-  ],
-};
+import { newRule, removeAt, updateAt } from './model-ops.js';
 
 export function App() {
-  const [model, setModel] = useState<SieveModel>(STARTER);
+  const [model, setModel] = useState<SieveModel>({ rules: [] });
   const [importing, setImporting] = useState(false);
+  // Inside Thunderbird the user must load the current filters from the server
+  // before editing, so we don't overwrite them blind. On the web there is no
+  // server, so editing is always available.
+  const [loaded, setLoaded] = useState(!isThunderbird());
+
   const script = useMemo(() => generate(model), [model]);
   const problems = useMemo(() => validateModel(model), [model]);
 
@@ -50,6 +26,7 @@ export function App() {
   const loadImported = (rules: Rule[]) => {
     setModel({ rules });
     setImporting(false);
+    setLoaded(true);
   };
 
   return (
@@ -59,7 +36,7 @@ export function App() {
           <span class="mark" aria-hidden="true" />
           <span class="title">Sieve Builder</span>
         </div>
-        <button class="btn-ghost" onClick={() => setImporting(true)}>
+        <button class="btn-ghost" disabled={!loaded} onClick={() => setImporting(true)}>
           Import
         </button>
       </header>
@@ -68,34 +45,43 @@ export function App() {
 
       <main class="layout">
         <section class="rules">
-          {problems.length > 0 && (
-            <div class="banner" role="status">
-              {problems.length} incomplete {problems.length === 1 ? 'field' : 'fields'} — fill{' '}
-              {problems.length === 1 ? 'it' : 'them'} in before saving.
-            </div>
+          {!loaded ? (
+            <p class="empty">
+              Load your current filters from the server (right) before editing, so your changes
+              build on what’s already there.
+            </p>
+          ) : (
+            <>
+              {problems.length > 0 && (
+                <div class="banner" role="status">
+                  {problems.length} incomplete {problems.length === 1 ? 'field' : 'fields'} — fill{' '}
+                  {problems.length === 1 ? 'it' : 'them'} in before saving.
+                </div>
+              )}
+
+              {model.rules.map((rule, i) => (
+                <RuleCard
+                  key={rule.id}
+                  rule={rule}
+                  onChange={(r) => setRules(updateAt(model.rules, i, r))}
+                  onRemove={() => setRules(removeAt(model.rules, i))}
+                />
+              ))}
+
+              {model.rules.length === 0 && (
+                <p class="empty">No rules yet. Add one to get started.</p>
+              )}
+
+              <button class="btn" onClick={() => setRules([...model.rules, newRule()])}>
+                + Add rule
+              </button>
+            </>
           )}
-
-          {model.rules.map((rule, i) => (
-            <RuleCard
-              key={rule.id}
-              rule={rule}
-              onChange={(r) => setRules(updateAt(model.rules, i, r))}
-              onRemove={() => setRules(removeAt(model.rules, i))}
-            />
-          ))}
-
-          {model.rules.length === 0 && (
-            <p class="empty">No rules yet. Add one to get started.</p>
-          )}
-
-          <button class="btn" onClick={() => setRules([...model.rules, newRule()])}>
-            + Add rule
-          </button>
         </section>
 
         <aside class="side">
           {isThunderbird() && (
-            <ServerPanel script={script} onLoad={loadImported} incomplete={problems.length > 0} />
+            <ServerPanel model={model} onLoad={loadImported} incomplete={problems.length > 0} />
           )}
           <Preview script={script} />
         </aside>

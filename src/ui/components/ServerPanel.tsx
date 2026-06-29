@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'preact/hooks';
 
-import type { ManageSieveClient, ScriptInfo } from '../../core/managesieve/index.js';
-import type { Rule } from '../../core/model/types.js';
+import { generate } from '../../core/generator/generate.js';
+import { ManageSieveError, type ManageSieveClient, type ScriptInfo } from '../../core/managesieve/index.js';
+import type { Rule, SieveModel } from '../../core/model/types.js';
 import { parseSieve } from '../../core/parser/parse.js';
+import { parseScriptVersion } from '../../core/script-version.js';
 import { connect, listAccounts } from '../../platform/thunderbird/backend.js';
 import { DEFAULT_SIEVE_PORT, type ImapAccount } from '../../platform/thunderbird/config.js';
 import { summarizeParse } from '../parse-summary.js';
 
 interface Props {
-  /** The current generated script, for saving. */
-  script: string;
+  /** The current rules, generated (with a version stamp) on save. */
+  model: SieveModel;
   /** Replace the editor's rules with ones loaded from the server. */
   onLoad: (rules: Rule[]) => void;
   /** When true, the current rules have unfinished fields — saving is blocked. */
@@ -17,16 +19,22 @@ interface Props {
 }
 
 type Status = { kind: 'ok' | 'info' | 'error'; text: string } | null;
+/** What we knew about the saved script when we loaded it, for conflict checks. */
+type Baseline = { name: string; version: number | null } | null;
 
-export function ServerPanel({ script, onLoad, incomplete }: Props) {
+export function ServerPanel({ model, onLoad, incomplete }: Props) {
   const [accounts, setAccounts] = useState<ImapAccount[]>([]);
   const [selected, setSelected] = useState('');
-  const [client, setClient] = useState<ManageSieveClient | null>(null);
-  const [scripts, setScripts] = useState<ScriptInfo[]>([]);
-  const [password, setPassword] = useState('');
   const [port, setPort] = useState(DEFAULT_SIEVE_PORT);
+  const [password, setPassword] = useState('');
+
+  const [client, setClient] = useState<ManageSieveClient | null>(null);
+  const [insecure, setInsecure] = useState(false);
+  const [scripts, setScripts] = useState<ScriptInfo[]>([]);
+  const [baseline, setBaseline] = useState<Baseline>(null);
   const [saveName, setSaveName] = useState('sieve-builder');
   const [activate, setActivate] = useState(true);
+
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status>(null);
 
@@ -51,62 +59,110 @@ export function ServerPanel({ script, onLoad, incomplete }: Props) {
     }
   };
 
-  const refresh = async (c: ManageSieveClient) => setScripts(await c.listScripts());
+  // Load and Save imply connect: open a session lazily on first use.
+  async function ensureClient(): Promise<ManageSieveClient> {
+    if (client) return client;
+    const account = accounts.find((a) => a.key === selected);
+    if (!account) throw new Error('Select an account first.');
+    const portOverride = Number.isFinite(port) && port > 0 ? port : DEFAULT_SIEVE_PORT;
+    const c = await connect(account, async () => password.trim() || null, { port: portOverride });
+    setClient(c);
+    setInsecure(!c.isSecure);
+    setPassword('');
+    return c;
+  }
 
-  const doConnect = () =>
-    run('Connect', async () => {
-      const account = accounts.find((a) => a.key === selected);
-      if (!account) return { kind: 'error', text: 'Select an account first.' };
-      const portOverride = Number.isFinite(port) && port > 0 ? port : DEFAULT_SIEVE_PORT;
-      const c = await connect(account, async () => password.trim() || null, { port: portOverride });
-      setClient(c);
-      setPassword('');
-      await refresh(c);
-      return c.isSecure
-        ? { kind: 'ok', text: `Connected to ${account.host} (TLS).` }
-        : { kind: 'info', text: `Connected to ${account.host} — warning: no TLS, credentials were sent in the clear.` };
+  async function loadInto(c: ManageSieveClient, name: string): Promise<Status> {
+    const text = await c.getScript(name);
+    const result = parseSieve(text);
+    const summary = summarizeParse(result);
+    if (summary.ruleCount === 0 && !result.ok) {
+      return { kind: 'error', text: `"${name}" couldn’t be parsed into editable rules.` };
+    }
+    onLoad(result.model.rules);
+    setBaseline({ name, version: parseScriptVersion(text) });
+    setSaveName(name);
+    return { kind: summary.kind === 'ok' ? 'ok' : 'info', text: `Loaded "${name}": ${summary.text}` };
+  }
+
+  function startNew(): void {
+    onLoad([]);
+    setBaseline(null);
+    setSaveName('sieve-builder');
+  }
+
+  const doLoadFromServer = () =>
+    run('Load', async () => {
+      const c = await ensureClient();
+      const list = await c.listScripts();
+      setScripts(list);
+      const active = list.find((s) => s.active);
+      if (active) return loadInto(c, active.name);
+      if (list.length === 0) {
+        startNew();
+        return { kind: 'info', text: 'No scripts on the server yet — start a new one, then Save.' };
+      }
+      return { kind: 'info', text: 'Connected. Choose a script to load below.' };
+    });
+
+  const doLoadScript = (name: string) =>
+    run('Load', async () => loadInto(await ensureClient(), name));
+
+  const doActivate = (name: string) =>
+    run('Activate', async () => {
+      const c = await ensureClient();
+      await c.setActive(name);
+      setScripts(await c.listScripts());
+      return { kind: 'ok', text: `"${name}" is now active.` };
+    });
+
+  const doSave = () =>
+    run('Save', async () => {
+      if (incomplete) return { kind: 'error', text: 'Finish the incomplete fields before saving.' };
+      const name = saveName.trim();
+      if (!name) return { kind: 'error', text: 'Enter a script name.' };
+      const c = await ensureClient();
+
+      // Load-first conflict check: re-read the server copy and compare versions.
+      let exists = false;
+      let serverVersion: number | null = null;
+      try {
+        serverVersion = parseScriptVersion(await c.getScript(name));
+        exists = true;
+      } catch (e) {
+        if (!(e instanceof ManageSieveError)) throw e; // genuine error, not "no such script"
+      }
+      const base = baseline && baseline.name === name ? baseline : null;
+      if (exists && !base) {
+        return {
+          kind: 'error',
+          text: `"${name}" already exists on the server but wasn’t loaded here — load it first to avoid overwriting it.`,
+        };
+      }
+      if (exists && base && serverVersion !== base.version) {
+        return {
+          kind: 'error',
+          text: `"${name}" changed on the server (now v${serverVersion ?? '?'}, you have v${base.version ?? '?'}). Reload before saving.`,
+        };
+      }
+
+      const newVersion = (base?.version ?? 0) + 1;
+      const out = generate(model, { version: newVersion });
+      await c.checkScript(out); // server-side validation; throws on a compile error
+      await c.putScript(name, out);
+      if (activate) await c.setActive(name);
+      setBaseline({ name, version: newVersion });
+      setScripts(await c.listScripts());
+      return { kind: 'ok', text: `Saved "${name}" (v${newVersion})${activate ? ' and activated it' : ''}.` };
     });
 
   const doDisconnect = () =>
     run('Disconnect', async () => {
       await client?.logout();
       setClient(null);
+      setInsecure(false);
       setScripts([]);
       return { kind: 'info', text: 'Disconnected.' };
-    });
-
-  const doLoad = (name: string) =>
-    run('Load', async () => {
-      if (!client) return;
-      const result = parseSieve(await client.getScript(name));
-      const summary = summarizeParse(result);
-      if (summary.ruleCount === 0) {
-        return { kind: 'error', text: `"${name}" couldn’t be parsed into any editable rules.` };
-      }
-      onLoad(result.model.rules);
-      setSaveName(name);
-      return { kind: summary.kind === 'ok' ? 'ok' : 'info', text: `Loaded "${name}": ${summary.text}` };
-    });
-
-  const doActivate = (name: string) =>
-    run('Activate', async () => {
-      if (!client) return;
-      await client.setActive(name);
-      await refresh(client);
-      return { kind: 'ok', text: `"${name}" is now active.` };
-    });
-
-  const doSave = () =>
-    run('Save', async () => {
-      if (!client) return;
-      if (incomplete) return { kind: 'error', text: 'Finish the incomplete fields before saving.' };
-      const name = saveName.trim();
-      if (!name) return { kind: 'error', text: 'Enter a script name.' };
-      await client.checkScript(script); // server-side validation; throws on error
-      await client.putScript(name, script);
-      if (activate) await client.setActive(name);
-      await refresh(client);
-      return { kind: 'ok', text: `Saved "${name}"${activate ? ' and activated it' : ''}.` };
     });
 
   return (
@@ -158,13 +214,17 @@ export function ServerPanel({ script, onLoad, incomplete }: Props) {
               disabled={busy}
               onInput={(e) => setPassword(e.currentTarget.value)}
             />
-            <button class="btn" disabled={busy || !selected} onClick={doConnect}>
-              Connect
-            </button>
           </div>
+          <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
+            Load from server
+          </button>
         </div>
       ) : (
         <>
+          {insecure && (
+            <div class="panel-status error">No TLS — credentials were sent in the clear.</div>
+          )}
+
           <ul class="script-list">
             {scripts.length === 0 && <li class="muted">No scripts on the server yet.</li>}
             {scripts.map((s) => (
@@ -174,7 +234,7 @@ export function ServerPanel({ script, onLoad, incomplete }: Props) {
                   {s.active && <span class="badge">active</span>}
                 </span>
                 <span class="script-actions">
-                  <button class="btn-ghost" disabled={busy} onClick={() => doLoad(s.name)}>
+                  <button class="btn-ghost" disabled={busy} onClick={() => doLoadScript(s.name)}>
                     Load
                   </button>
                   {!s.active && (
@@ -186,6 +246,15 @@ export function ServerPanel({ script, onLoad, incomplete }: Props) {
               </li>
             ))}
           </ul>
+
+          <div class="row">
+            <button class="add-btn" disabled={busy} onClick={startNew}>
+              + New script
+            </button>
+            <button class="add-btn" disabled={busy} onClick={doLoadFromServer}>
+              ↻ Reload
+            </button>
+          </div>
 
           <div class="row save-row">
             <input
