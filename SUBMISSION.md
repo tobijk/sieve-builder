@@ -6,7 +6,7 @@ access is necessary, how to reproduce the shipped build, and how user data is
 handled. A short version suitable for the "Notes to Reviewers" field is at the
 bottom.
 
-- **Add-on:** Sieve Builder (`sieve-builder@tobijk`), version 0.1.2
+- **Add-on:** Sieve Builder (`sieve-builder@tobijk`), version 0.1.3
 - **Min Thunderbird:** 128.0
 - **License:** MIT (all code original; no third-party add-on code is included)
 - **Source:** this repository
@@ -58,10 +58,20 @@ account's IMAP connection.
 
 ## Permissions
 
-- `accountsRead` — declared for access to mail-account information. (Account
-  details are read inside the Experiment via `MailServices`; this permission is
-  retained for clarity of intent and can be removed if you prefer.)
-- `experiment_apis.sieve` — the TCP/credentials bridge described above.
+The add-on requests **no WebExtension permissions** — all privileged access is
+through the Experiment (`experiment_apis.sieve`), the TCP/credentials bridge
+described above. Account details are read inside the Experiment via
+`MailServices`, so no `accountsRead` permission is needed.
+
+## Validation note
+
+The linter reports one warning: *"Unsafe assignment to innerHTML"* in
+`ui/main.js`. This is inside the bundled **Preact** runtime (its support for
+`dangerouslySetInnerHTML` and node clearing), **not** application code. The
+project never uses `dangerouslySetInnerHTML` and never assigns user data to
+`innerHTML` (verifiable by grepping `src/`); all dynamic content is rendered as
+escaped text/JSX. Generated Sieve is additionally escaped at a single chokepoint
+(`src/core/sieve/string.ts`).
 
 ## Reproducible build
 
