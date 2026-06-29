@@ -11,13 +11,13 @@ the same core can drive a standalone native app.
 
 ## Status
 
-Phase 1 — the model and generator — is in place and validated against Dovecot's
-`sievec` compiler.
+The model, generator, and graphical rule editor are in place; generated scripts
+are validated against Dovecot's `sievec` compiler.
 
 - [x] Rule model (`src/core/model`)
 - [x] Generator: model → Sieve, with computed `require`s and injection-safe
       string handling (`src/core/generator`, `src/core/sieve`)
-- [ ] UI rule editor (Preact)
+- [x] UI rule editor with live preview (`src/ui`, Preact)
 - [ ] ManageSieve client (injected transport)
 - [ ] Parser: Sieve → model (round-trip)
 - [ ] Thunderbird MailExtension shell
@@ -54,6 +54,8 @@ platform-specific.** ManageSieve will take an injected transport, so Thunderbird
 
 ```bash
 npm install
+npm run dev         # esbuild dev server → http://localhost:8000
+npm run build       # production bundle → dist/
 npm run typecheck   # tsc --noEmit
 npm test            # node --test via tsx
 ```
