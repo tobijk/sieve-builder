@@ -15,6 +15,12 @@
         "parameters": [{ "name": "accountKey", "type": "string" }]
       },
       {
+        "name": "getOAuthToken",
+        "type": "function",
+        "async": true,
+        "parameters": [{ "name": "accountKey", "type": "string" }]
+      },
+      {
         "name": "connect",
         "type": "function",
         "async": true,

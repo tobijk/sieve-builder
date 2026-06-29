@@ -11,6 +11,7 @@ import { ExperimentTransport } from './experiment-transport.js';
 interface SieveApi {
   listAccounts(): Promise<ImapAccount[]>;
   getPassword(accountKey: string): Promise<string | null>;
+  getOAuthToken(accountKey: string): Promise<string>;
 }
 
 function maybeApi(): SieveApi | null {
@@ -51,15 +52,20 @@ export async function connect(
   const cfg = deriveSieveConfig(account);
   if (overrides.host) cfg.host = overrides.host;
   if (overrides.port) cfg.port = overrides.port;
-  const password = (await api.getPassword(account.key)) ?? (await askPassword());
-  if (!password) throw new Error('A password is required to connect.');
 
   const transport = await ExperimentTransport.connect(cfg.host, cfg.port);
   const client = new ManageSieveClient(transport, { requireTls: cfg.starttls });
   try {
     await client.connect();
     if (cfg.starttls) await client.startTls();
-    await client.authenticate(cfg.username, password);
+    if (account.oauth) {
+      // OAuth account: get a bearer token from Thunderbird and use XOAUTH2.
+      await client.authenticateOAuth2(cfg.username, await api.getOAuthToken(account.key));
+    } else {
+      const password = (await api.getPassword(account.key)) ?? (await askPassword());
+      if (!password) throw new Error('A password is required to connect.');
+      await client.authenticate(cfg.username, password);
+    }
     return client;
   } catch (err) {
     await client.close().catch(() => {}); // don't leak the socket on a failed handshake

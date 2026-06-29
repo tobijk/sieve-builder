@@ -102,9 +102,29 @@ var sieve = class extends ExtensionCommon.ExtensionAPI {
               port: server.port,
               socketType: server.socketType,
               type: server.type,
+              oauth: server.authMethod === Ci.nsMsgAuthMethod.OAuth2,
             });
           }
           return accounts;
+        },
+
+        // Get an OAuth2 bearer token for the account, for XOAUTH2 auth.
+        // Uses Thunderbird's OAuth2 module (msgIOAuth2Module): initFromMail()
+        // associates it with the account's stored OAuth credentials and
+        // getAccessToken() returns a fresh token (refreshing if needed).
+        // NOTE: verify the msgIOAuth2Module API against the target Thunderbird.
+        async getOAuthToken(accountKey) {
+          const server = MailServices.accounts.getIncomingServer(accountKey);
+          const oauth = Cc['@mozilla.org/mail/oauth2-module;1'].createInstance(Ci.msgIOAuth2Module);
+          if (!oauth.initFromMail(server)) {
+            throw new Error('account is not configured for OAuth2');
+          }
+          return new Promise((resolve, reject) => {
+            oauth.getAccessToken({
+              onSuccess: (token) => resolve(token),
+              onFailure: () => reject(new Error('OAuth2 token retrieval failed')),
+            });
+          });
         },
 
         async getPassword(accountKey) {

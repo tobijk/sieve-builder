@@ -16,6 +16,8 @@ export interface ImapAccount {
   port: number;
   socketType: number;
   type: string;
+  /** True when the account authenticates with OAuth2 (use XOAUTH2, not a password). */
+  oauth: boolean;
 }
 
 export interface SieveConfig {

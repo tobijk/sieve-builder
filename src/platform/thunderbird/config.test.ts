@@ -11,6 +11,7 @@ const base: ImapAccount = {
   port: 993,
   socketType: 3,
   type: 'imap',
+  oauth: false,
 };
 
 test('derives sieve host/username from the IMAP account, port 4190', () => {

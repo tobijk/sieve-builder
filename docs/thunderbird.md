@@ -55,9 +55,11 @@ The editor runs as a normal extension page. Server access is provided by the
 - **Accounts** are read from Thunderbird; the ManageSieve host/username come from
   the IMAP account, the port defaults to **4190**, and STARTTLS is used when the
   IMAP account uses encryption (all overridable in code/UI).
-- The **password** is taken from Thunderbird's own store (reusing the IMAP
-  credentials); you are only prompted if it can't be retrieved (e.g. OAuth
-  accounts, or no stored password).
+- **Authentication** follows the account type. Password accounts reuse the
+  password from Thunderbird's store and use the strongest mechanism the server
+  offers (SCRAM-SHA-256 > SCRAM-SHA-1 > PLAIN); you're only prompted if no
+  password is stored. **OAuth accounts** get a bearer token from Thunderbird's
+  OAuth2 module and authenticate with XOAUTH2 — no password needed.
 - **TLS verification** (certificate chain + hostname) and any user-approved
   certificate exceptions come from Thunderbird's socket stack, so it behaves
   exactly like the IMAP connection.

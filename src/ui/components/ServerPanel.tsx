@@ -225,6 +225,8 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
       });
     });
 
+  const isOAuth = accounts.find((a) => a.key === selected)?.oauth ?? false;
+
   const statusView = (s: Status) =>
     s ? <div class={`panel-status ${s.kind}`}>{s.text}</div> : null;
 
@@ -263,15 +265,19 @@ export function ServerPanel({ model, onLoad, incomplete, loaded }: Props) {
             />
             <span class="unit">port</span>
           </span>
-          <input
-            class="control grow"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Password (only if not saved)"
-            value={password}
-            disabled={busy}
-            onInput={(e) => setPassword(e.currentTarget.value)}
-          />
+          {isOAuth ? (
+            <span class="oauth-note grow">Uses your account’s sign-in (OAuth)</span>
+          ) : (
+            <input
+              class="control grow"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Password (only if not saved)"
+              value={password}
+              disabled={busy}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+            />
+          )}
         </div>
 
         <button class="btn" disabled={busy || !selected} onClick={doLoadFromServer}>
