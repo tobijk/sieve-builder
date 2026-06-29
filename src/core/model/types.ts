@@ -67,7 +67,8 @@ export interface EnvelopeTest extends TestBase, ContentMatch {
   part?: AddressPart;
 }
 
-export interface SizeTest extends TestBase {
+/** Note: size has no `negate` — negated size isn't in the supported subset. */
+export interface SizeTest {
   type: 'size';
   /** true => `:over`, false => `:under`. */
   over: boolean;

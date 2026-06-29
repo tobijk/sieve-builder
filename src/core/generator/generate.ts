@@ -9,6 +9,11 @@
  *    parser can reconstruct names and ordering losslessly.
  *  - Stability: deterministic output (sorted requires, fixed spacing) so diffs
  *    and golden tests stay meaningful.
+ *
+ * Precondition: the model must be well-formed — required string lists (a test's
+ * fields/values, a flag action's flags) must be non-empty. Such a list throws
+ * (fail-closed) rather than emitting an invalid script. The UI and parser only
+ * ever build non-empty lists.
  */
 
 import type {
@@ -136,7 +141,10 @@ function renderBodyTransform(
 ): string {
   if (!transform || !BODY_TRANSFORM_SET.has(transform)) return '';
   if (transform === 'content') {
-    return ` :content ${sieveStringList(contentTypes ?? [''])}`;
+    // `:content` requires at least one content-type; without one, fall back to a
+    // plain body test rather than emitting a meaningless `:content ""`.
+    if (!contentTypes || contentTypes.length === 0) return '';
+    return ` :content ${sieveStringList(contentTypes)}`;
   }
   return ` :${transform}`;
 }

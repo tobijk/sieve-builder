@@ -19,7 +19,14 @@ import type {
   SieveModel,
   Test,
 } from '../model/types.js';
-import { ACTION_TYPES, ADDRESS_PARTS, KEYWORD_GROUP, MATCH_TYPES } from '../model/subset.js';
+import {
+  ACTION_TYPES,
+  ADDRESS_PARTS,
+  COMPARATORS,
+  KEYWORD_GROUP,
+  MATCH_TYPES,
+  RELATIONAL_OPS,
+} from '../model/subset.js';
 import type { AstArg, AstCommand, AstTest } from './grammar.js';
 import type { Marker } from './lexer.js';
 
@@ -30,6 +37,8 @@ export interface ParseIssue {
 const ACTION_NAMES: ReadonlySet<string> = new Set(ACTION_TYPES);
 const MATCH_TAGS: ReadonlySet<string> = new Set(MATCH_TYPES);
 const PART_TAGS: ReadonlySet<string> = new Set(ADDRESS_PARTS);
+const COMPARATOR_SET: ReadonlySet<string> = new Set(COMPARATORS);
+const RELATIONAL_SET: ReadonlySet<string> = new Set(RELATIONAL_OPS);
 
 /** Walks a leaf test's argument list, separating tags from positional strings. */
 interface LeafArgs {
@@ -68,12 +77,14 @@ function readLeafArgs(args: AstArg[], fail: (m: string) => void): LeafArgs | nul
     if (tag === 'comparator') {
       const v = takeString();
       if (v === null) return null;
+      if (!COMPARATOR_SET.has(v)) return (fail(`unsupported comparator "${v}"`), null);
       out.comparator = v as Comparator;
     } else if (MATCH_TAGS.has(tag)) {
       out.match = tag as MatchType;
       if (tag === 'count' || tag === 'value') {
         const v = takeString();
         if (v === null) return null;
+        if (!RELATIONAL_SET.has(v)) return (fail(`unsupported relational operator "${v}"`), null);
         out.relation = v as RelationalOp;
       }
     } else if (PART_TAGS.has(tag)) {
@@ -98,15 +109,63 @@ function readLeafArgs(args: AstArg[], fail: (m: string) => void): LeafArgs | nul
   return out;
 }
 
+type LeafKey = 'comparator' | 'match' | 'relation' | 'part' | 'over' | 'limit' | 'transform' | 'contentTypes';
+const LEAF_KEYS: readonly LeafKey[] = [
+  'comparator',
+  'match',
+  'relation',
+  'part',
+  'over',
+  'limit',
+  'transform',
+  'contentTypes',
+];
+
+/**
+ * Enforce that a leaf test carries only the arguments it allows and exactly the
+ * expected number of positional value lists. Anything extra is flagged (rather
+ * than silently dropped) so the parser's `ok` flag stays honest.
+ */
+function checkLeaf(
+  name: string,
+  a: LeafArgs,
+  allowed: ReadonlySet<LeafKey>,
+  positional: number,
+  fail: (m: string) => void,
+): boolean {
+  for (const key of LEAF_KEYS) {
+    if (a[key] !== undefined && !allowed.has(key)) {
+      fail(`${name} test: unexpected :${key} argument`);
+      return false;
+    }
+  }
+  if (a.positional.length !== positional) {
+    fail(`${name} test: expected ${positional} value list(s), got ${a.positional.length}`);
+    return false;
+  }
+  return true;
+}
+
+const ALLOWED: Record<string, ReadonlySet<LeafKey>> = {
+  header: new Set(['comparator', 'match', 'relation']),
+  address: new Set(['comparator', 'match', 'relation', 'part']),
+  envelope: new Set(['comparator', 'match', 'relation', 'part']),
+  exists: new Set([]),
+  size: new Set(['over', 'limit']),
+  body: new Set(['comparator', 'match', 'relation', 'transform', 'contentTypes']),
+};
+
 function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
   const fail = (m: string) => issues.push({ message: m });
   const a = readLeafArgs(test.args, fail);
   if (!a) return null;
+  const allowed = ALLOWED[test.name];
+  if (!allowed) return (fail(`unsupported test '${test.name}'`), null);
   const match = a.match ?? 'is';
 
   switch (test.name) {
     case 'header': {
-      if (a.positional.length < 2) return (fail('header test needs field and value lists'), null);
+      if (!checkLeaf('header', a, allowed, 2, fail)) return null;
       const t: HeaderTest = {
         type: 'header',
         fields: a.positional[0]!,
@@ -119,7 +178,7 @@ function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
     }
     case 'address':
     case 'envelope': {
-      if (a.positional.length < 2) return (fail(`${test.name} test needs field and value lists`), null);
+      if (!checkLeaf(test.name, a, allowed, 2, fail)) return null;
       const base = {
         fields: a.positional[0]!,
         match,
@@ -133,15 +192,17 @@ function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
         : ({ type: 'envelope', ...base } satisfies EnvelopeTest);
     }
     case 'exists': {
-      if (a.positional.length < 1) return (fail('exists test needs a field list'), null);
+      if (!checkLeaf('exists', a, allowed, 1, fail)) return null;
       return { type: 'exists', fields: a.positional[0]! };
     }
     case 'size': {
+      if (!checkLeaf('size', a, allowed, 0, fail)) return null;
       if (a.limit === undefined) return (fail('size test needs a number'), null);
-      return { type: 'size', over: a.over ?? true, limit: a.limit };
+      if (a.over === undefined) return (fail('size test needs :over or :under'), null);
+      return { type: 'size', over: a.over, limit: a.limit };
     }
     case 'body': {
-      if (a.positional.length < 1) return (fail('body test needs a value list'), null);
+      if (!checkLeaf('body', a, allowed, 1, fail)) return null;
       const t: BodyTest = {
         type: 'body',
         match,
@@ -153,8 +214,7 @@ function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
       return t;
     }
     default:
-      fail(`unsupported test '${test.name}'`);
-      return null;
+      return (fail(`unsupported test '${test.name}'`), null);
   }
 }
 
@@ -372,6 +432,7 @@ export function lower(commands: AstCommand[], markers: Marker[]): { model: Sieve
     }
 
     flush();
+    pendingName = null; // a stray marker shouldn't attach to a later rule
     issues.push({ message: `unsupported command '${cmd.name}'` });
   }
 

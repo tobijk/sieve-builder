@@ -178,6 +178,23 @@ test('elsif is reported as unsupported, not silently dropped', () => {
   assert.equal(result.ok, false);
 });
 
+test('an unknown comparator is rejected (ok=false)', () => {
+  const result = parseSieve('if header :comparator "i;bogus" :is "Subject" "x" { keep; }\n');
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((i) => /comparator/.test(i.message)));
+});
+
+test('a tag that does not apply to the test is flagged, not dropped', () => {
+  // :content belongs to body, not address — must not silently parse as ok.
+  const result = parseSieve('if address :content ["text/plain"] :is "From" "x" { keep; }\n');
+  assert.equal(result.ok, false);
+});
+
+test('an extra positional list is flagged', () => {
+  const result = parseSieve('if header :is "Subject" "a" "b" { keep; }\n');
+  assert.equal(result.ok, false);
+});
+
 test('malformed input fails closed rather than throwing', () => {
   const result = parseSieve('if header :is "Subject" "x" {  keep; '); // missing }
   assert.equal(result.ok, false);
