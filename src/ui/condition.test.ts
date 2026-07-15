@@ -66,6 +66,23 @@ test('size conversions are stable in MB', () => {
   assert.equal(matchKey(withMatch(bigger, 'under')), 'under');
 });
 
+test('date conditions map to currentdate value bounds', () => {
+  const date = withField(header, 'Date');
+  assert.equal(date.type, 'currentdate');
+  assert.equal(fieldKey(date), 'Date');
+  assert.equal(matchKey(date), 'on-or-after');
+
+  const until = withText(withMatch(date, 'on-or-before'), '2026-07-28');
+  assert.equal(until.type === 'currentdate' && until.relation, 'le');
+  assert.equal(textValue(until), '2026-07-28');
+  assert.equal(matchKey(until), 'on-or-before');
+
+  const exact = withMatch(until, 'is');
+  assert.equal(exact.type === 'currentdate' && exact.match, 'is');
+  assert.equal('relation' in exact, false);
+  assert.equal(hasCaseToggle(exact), false);
+});
+
 test('withText updates only the value', () => {
   const t = withText(header, 'changed');
   assert.equal(textValue(t), 'changed');

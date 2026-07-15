@@ -19,7 +19,7 @@ const HEADER_FIELDS = ['Subject', 'List-Id'];
 export const CUSTOM = '__custom__';
 
 /** Options for the field dropdown, in display order. */
-export const FIELD_OPTIONS = [...ADDRESS_FIELDS, ...HEADER_FIELDS, 'Size', 'Body'];
+export const FIELD_OPTIONS = [...ADDRESS_FIELDS, ...HEADER_FIELDS, 'Size', 'Date', 'Body'];
 
 export type MatchKey =
   | 'contains'
@@ -29,7 +29,9 @@ export type MatchKey =
   | 'matches'
   | 'regex'
   | 'over'
-  | 'under';
+  | 'under'
+  | 'on-or-after'
+  | 'on-or-before';
 
 export const TEXT_MATCHES: ReadonlyArray<{ key: MatchKey; label: string }> = [
   { key: 'contains', label: 'contains' },
@@ -45,6 +47,13 @@ export const SIZE_MATCHES: ReadonlyArray<{ key: MatchKey; label: string }> = [
   { key: 'under', label: 'is smaller than' },
 ];
 
+/** "Date" is the delivery date (Sieve currentdate, evaluated when mail arrives). */
+export const DATE_MATCHES: ReadonlyArray<{ key: MatchKey; label: string }> = [
+  { key: 'on-or-after', label: 'is on or after' },
+  { key: 'on-or-before', label: 'is on or before' },
+  { key: 'is', label: 'is exactly' },
+];
+
 const MB = 1024 * 1024;
 
 // --- Reads ------------------------------------------------------------------
@@ -53,17 +62,23 @@ const MB = 1024 * 1024;
 export function fieldKey(test: Test): string {
   if (test.type === 'size') return 'Size';
   if (test.type === 'body') return 'Body';
+  if (test.type === 'currentdate') return 'Date';
   const name = test.fields[0] ?? 'Subject';
   return FIELD_OPTIONS.includes(name) ? name : CUSTOM;
 }
 
 export function customName(test: Test): string {
-  if (test.type === 'size' || test.type === 'body') return '';
+  if (!('fields' in test)) return '';
   return test.fields[0] ?? '';
 }
 
 export function matchKey(test: Test): MatchKey {
   if (test.type === 'size') return test.over ? 'over' : 'under';
+  if (test.type === 'currentdate') {
+    if (test.match === 'value' && test.relation === 'ge') return 'on-or-after';
+    if (test.match === 'value' && test.relation === 'le') return 'on-or-before';
+    return 'is';
+  }
   if (!('match' in test)) return 'contains';
   const negate = 'negate' in test && test.negate === true;
   switch (test.match) {
@@ -81,7 +96,9 @@ export function matchKey(test: Test): MatchKey {
 }
 
 export function matchOptions(test: Test): ReadonlyArray<{ key: MatchKey; label: string }> {
-  return test.type === 'size' ? SIZE_MATCHES : TEXT_MATCHES;
+  if (test.type === 'size') return SIZE_MATCHES;
+  if (test.type === 'currentdate') return DATE_MATCHES;
+  return TEXT_MATCHES;
 }
 
 export function textValue(test: Test): string {
@@ -129,23 +146,36 @@ function makeTextTest(
   return { type: 'header', fields: [field], ...common };
 }
 
+/** A date test for the given match key; `is` compares the exact day. */
+function makeDateTest(key: MatchKey, value: string): Test {
+  const relation = key === 'on-or-after' ? 'ge' : key === 'on-or-before' ? 'le' : null;
+  return relation
+    ? { type: 'currentdate', datePart: 'date', match: 'value', relation, values: [value] }
+    : { type: 'currentdate', datePart: 'date', match: 'is', values: [value] };
+}
+
 export function withField(test: Test, field: string): Test {
   if (field === 'Size') return { type: 'size', over: true, limit: MB };
+  if (field === 'Date') return makeDateTest('on-or-after', '');
   const value = textValue(test);
   const key = matchKey(test);
-  const textKey: MatchKey = key === 'over' || key === 'under' ? 'contains' : key;
+  const textKey: MatchKey =
+    key === 'over' || key === 'under' || key === 'on-or-after' || key === 'on-or-before'
+      ? 'contains'
+      : key;
   return makeTextTest(field === CUSTOM ? '' : field, textKey, value, comparatorOf(test));
 }
 
 export function withMatch(test: Test, key: MatchKey): Test {
   if (test.type === 'size') return { ...test, over: key === 'over' };
+  if (test.type === 'currentdate') return makeDateTest(key, textValue(test));
   const field = fieldKey(test) === CUSTOM ? customName(test) : fieldKey(test);
   return makeTextTest(field, key, textValue(test), comparatorOf(test));
 }
 
-/** Case sensitivity only applies to text tests; size has no comparator. */
+/** Case sensitivity only applies to text tests; size and date have no comparator. */
 export function hasCaseToggle(test: Test): boolean {
-  return test.type !== 'size';
+  return test.type !== 'size' && test.type !== 'currentdate';
 }
 
 export function isCaseSensitive(test: Test): boolean {
@@ -165,7 +195,7 @@ export function withCaseSensitive(test: Test, sensitive: boolean): Test {
 }
 
 export function withCustomName(test: Test, name: string): Test {
-  if (test.type === 'size' || test.type === 'body') return test;
+  if (!('fields' in test)) return test;
   return { ...test, fields: [name] };
 }
 

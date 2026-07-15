@@ -148,6 +148,8 @@ function renderTest(test: Test): string {
       const transform = renderBodyTransform(test.transform, test.contentTypes);
       return `body${transform}${matchArgs(test)} ${sieveStringList(test.values)}`;
     }
+    case 'currentdate':
+      return `currentdate${matchArgs(test)} ${sieveString(test.datePart)} ${sieveStringList(test.values)}`;
   }
 }
 

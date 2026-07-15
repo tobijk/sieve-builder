@@ -29,6 +29,7 @@ function nodeProblems(node: ConditionNode, add: (message: string) => void): void
       if (node.values.some(blank)) add('a condition has an empty value');
       break;
     case 'body':
+    case 'currentdate':
       if (node.values.some(blank)) add('a condition has an empty value');
       break;
     case 'exists':

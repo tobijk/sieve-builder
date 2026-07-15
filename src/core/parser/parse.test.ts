@@ -111,6 +111,24 @@ const MODELS: Record<string, SieveModel> = {
       },
     ],
   },
+  outOfOffice: {
+    rules: [
+      {
+        id: 'a',
+        name: 'Out of office',
+        enabled: true,
+        root: {
+          type: 'group',
+          match: 'all',
+          children: [
+            { type: 'currentdate', datePart: 'date', match: 'value', relation: 'ge', values: ['2026-07-20'] },
+            { type: 'currentdate', datePart: 'date', match: 'value', relation: 'le', values: ['2026-07-28'] },
+          ],
+        },
+        actions: [{ type: 'vacation', days: 7, subject: 'Out of office', reason: 'Away until July 28.' }],
+      },
+    ],
+  },
   unconditional: {
     rules: [
       { id: 'a', name: 'Catch-all', enabled: true, root: { type: 'group', match: 'all', children: [] }, actions: [{ type: 'keep' }, { type: 'stop' }] },
@@ -204,6 +222,19 @@ test('an unsupported command degrades gracefully (ok=false)', () => {
 
 test('elsif is reported as unsupported, not silently dropped', () => {
   const result = parseSieve('if size :over 1 { keep; } elsif size :over 2 { discard; }\n');
+  assert.equal(result.ok, false);
+});
+
+test('an unsupported currentdate date-part is rejected (ok=false)', () => {
+  const result = parseSieve('require "date";\nif currentdate :is "weekday" "0" { discard; }\n');
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((i) => /date-part/.test(i.message)));
+});
+
+test('currentdate :zone is rejected, not silently dropped (ok=false)', () => {
+  const result = parseSieve(
+    'require "date";\nif currentdate :zone "+0100" :is "date" "2026-07-20" { discard; }\n',
+  );
   assert.equal(result.ok, false);
 });
 

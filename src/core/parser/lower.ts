@@ -11,6 +11,8 @@ import type {
   Comparator,
   ConditionGroup,
   ConditionNode,
+  CurrentDateTest,
+  DatePart,
   EnvelopeTest,
   HeaderTest,
   MatchType,
@@ -23,6 +25,7 @@ import {
   ACTION_TYPES,
   ADDRESS_PARTS,
   COMPARATORS,
+  DATE_PARTS,
   KEYWORD_GROUP,
   MATCH_TYPES,
   RELATIONAL_OPS,
@@ -39,6 +42,7 @@ const MATCH_TAGS: ReadonlySet<string> = new Set(MATCH_TYPES);
 const PART_TAGS: ReadonlySet<string> = new Set(ADDRESS_PARTS);
 const COMPARATOR_SET: ReadonlySet<string> = new Set(COMPARATORS);
 const RELATIONAL_SET: ReadonlySet<string> = new Set(RELATIONAL_OPS);
+const DATE_PART_SET: ReadonlySet<string> = new Set(DATE_PARTS);
 
 /** Walks a leaf test's argument list, separating tags from positional strings. */
 interface LeafArgs {
@@ -153,6 +157,7 @@ const ALLOWED: Record<string, ReadonlySet<LeafKey>> = {
   exists: new Set([]),
   size: new Set(['over', 'limit']),
   body: new Set(['comparator', 'match', 'relation', 'transform', 'contentTypes']),
+  currentdate: new Set(['comparator', 'match', 'relation']),
 };
 
 function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
@@ -210,6 +215,23 @@ function lowerLeaf(test: AstTest, issues: ParseIssue[]): Test | null {
         ...(a.transform ? { transform: a.transform } : {}),
         ...(a.contentTypes ? { contentTypes: a.contentTypes } : {}),
         ...(a.comparator ? { comparator: a.comparator } : {}),
+      };
+      return t;
+    }
+    case 'currentdate': {
+      // Note: :zone/:originalzone already failed in readLeafArgs (honest ok).
+      if (!checkLeaf('currentdate', a, allowed, 2, fail)) return null;
+      const datePart = a.positional[0]!;
+      if (datePart.length !== 1 || !DATE_PART_SET.has(datePart[0]!)) {
+        return (fail(`unsupported currentdate date-part ${JSON.stringify(datePart)}`), null);
+      }
+      const t: CurrentDateTest = {
+        type: 'currentdate',
+        datePart: datePart[0] as DatePart,
+        match,
+        values: a.positional[1]!,
+        ...(a.comparator ? { comparator: a.comparator } : {}),
+        ...(a.relation ? { relation: a.relation } : {}),
       };
       return t;
     }

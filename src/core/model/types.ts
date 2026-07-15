@@ -6,7 +6,7 @@
  * `model -> sieve -> model` stays an identity for our supported subset.
  *
  * References: RFC 5228 (Sieve), RFC 5231 (relational), RFC 5232 (imap4flags),
- * RFC 5230 (vacation), RFC 5173 (body).
+ * RFC 5230 (vacation), RFC 5173 (body), RFC 5260 (date).
  */
 
 import {
@@ -14,6 +14,7 @@ import {
   ADDRESS_PARTS,
   BODY_TRANSFORMS,
   COMPARATORS,
+  DATE_PARTS,
   MATCH_TYPES,
   RELATIONAL_OPS,
 } from './subset.js';
@@ -32,6 +33,9 @@ export type AddressPart = (typeof ADDRESS_PARTS)[number];
 
 /** Body transform (RFC 5173). */
 export type BodyTransform = (typeof BODY_TRANSFORMS)[number];
+
+/** Date-part of the currentdate test (RFC 5260). */
+export type DatePart = (typeof DATE_PARTS)[number];
 
 // --- Tests (conditions) -----------------------------------------------------
 
@@ -89,13 +93,25 @@ export interface BodyTest extends TestBase, ContentMatch {
   contentTypes?: string[];
 }
 
+/**
+ * Tests the date at evaluation (i.e. delivery) time. Needs "date". With the
+ * `date` part, values are "YYYY-MM-DD" and `value`-match comparisons work
+ * lexicographically — e.g. an out-of-office window is
+ * `value ge <start>` and `value le <end>`.
+ */
+export interface CurrentDateTest extends TestBase, ContentMatch {
+  type: 'currentdate';
+  datePart: DatePart;
+}
+
 export type Test =
   | HeaderTest
   | AddressTest
   | EnvelopeTest
   | SizeTest
   | ExistsTest
-  | BodyTest;
+  | BodyTest
+  | CurrentDateTest;
 
 // --- Actions ----------------------------------------------------------------
 

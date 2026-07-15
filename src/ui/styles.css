@@ -534,6 +534,77 @@ select.control {
   border-color: var(--accent);
 }
 
+/* --- Out of office card --- */
+/* Same body as a rule card; a soft accent wash marks the responder as live. */
+.ooo.on {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: linear-gradient(
+    color-mix(in srgb, var(--accent-soft) 45%, var(--surface)),
+    var(--surface) 72px
+  );
+}
+
+.ooo-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  padding: 0 6px;
+}
+
+.ooo-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ooo-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ooo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ooo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+textarea.control {
+  height: auto;
+  min-height: 88px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ooo-opts {
+  gap: 16px;
+}
+
+.ooo-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ooo-days {
+  margin-left: auto;
+}
+
+.ooo-days input {
+  width: 64px;
+}
+
+.ooo-body > .hint {
+  margin: 0;
+}
+
 /* --- Toggle switch --- */
 .switch {
   position: relative;

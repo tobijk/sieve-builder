@@ -8,6 +8,9 @@ interface Props {
   canRemove: boolean;
 }
 
+// "Auto-reply" is created via the dedicated out-of-office card, not offered
+// here — but it stays renderable so imported conditional auto-replies keep
+// their editor instead of breaking the dropdown.
 const ACTION_LABELS: ReadonlyArray<{ type: Action['type']; label: string }> = [
   { type: 'fileinto', label: 'File into' },
   { type: 'redirect', label: 'Redirect to' },
@@ -33,7 +36,7 @@ export function ActionRow({ action, onChange, onRemove, canRemove }: Props) {
         value={action.type}
         onChange={(e) => onChange(defaultAction(e.currentTarget.value as Action['type']))}
       >
-        {ACTION_LABELS.map((a) => (
+        {ACTION_LABELS.filter((a) => a.type !== 'vacation' || action.type === 'vacation').map((a) => (
           <option key={a.type} value={a.type}>
             {a.label}
           </option>

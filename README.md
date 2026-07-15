@@ -25,6 +25,10 @@ are validated against Dovecot's `sievec` compiler.
 - [x] Thunderbird MailExtension (`extension-src`, `src/platform/thunderbird`):
       `npm run build:ext` → `dist-ext/` + a `.xpi`. See
       [docs/thunderbird.md](docs/thunderbird.md). Verified running in Thunderbird.
+- [x] Out-of-office responder: a dedicated card above the rules (subject,
+      message, reply interval, optional date window). In the model and the
+      script it is an ordinary rule — a `vacation` action guarded by
+      `currentdate` bounds (RFC 5230/5260) — so it round-trips like any other.
 
 ## Architecture
 

@@ -140,6 +140,27 @@ test('a single-child group collapses (no redundant allof)', () => {
   assert.doesNotMatch(out, /allof|anyof/);
 });
 
+test('an out-of-office window renders as currentdate bounds around vacation', () => {
+  const out = generate({
+    rules: [
+      rule({
+        name: 'Out of office',
+        tests: [
+          { type: 'currentdate', datePart: 'date', match: 'value', relation: 'ge', values: ['2026-07-20'] },
+          { type: 'currentdate', datePart: 'date', match: 'value', relation: 'le', values: ['2026-07-28'] },
+        ],
+        actions: [{ type: 'vacation', days: 7, subject: 'Away', reason: 'Back on July 28.' }],
+      }),
+    ],
+  });
+  assert.match(out, /require \["date", "relational", "vacation"\];/);
+  assert.match(
+    out,
+    /if allof\(currentdate :value "ge" "date" "2026-07-20", currentdate :value "le" "date" "2026-07-28"\)/,
+  );
+  assert.match(out, /vacation :days 7 :subject "Away" "Back on July 28\.";/);
+});
+
 test('unconditional rule emits actions without an if-block', () => {
   const out = generate({ rules: [rule({ name: 'Catch-all', actions: [{ type: 'keep' }] })] });
   assert.match(out, /# rule:\[Catch-all\]\nkeep;/);
@@ -228,6 +249,7 @@ test('generated scripts compile under sievec', { skip: sievecSkip }, () => {
           { type: 'body', transform: 'text', match: 'contains', values: ['lottery'] },
           { type: 'header', negate: true, fields: ['Subject'], match: 'regex', values: ['^re:'] },
           { type: 'header', fields: ['X-Priority'], match: 'value', relation: 'le', comparator: 'i;ascii-numeric', values: ['2'] },
+          { type: 'currentdate', datePart: 'date', match: 'value', relation: 'ge', values: ['2026-07-20'] },
           {
             type: 'group',
             match: 'all',

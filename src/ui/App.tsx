@@ -5,10 +5,12 @@ import type { Rule, SieveModel } from '../core/model/types.js';
 import { validateModel } from '../core/model/validate.js';
 import { isThunderbird } from '../platform/thunderbird/backend.js';
 import { ImportDialog } from './components/ImportDialog.js';
+import { OutOfOffice } from './components/OutOfOffice.js';
 import { Preview } from './components/Preview.js';
 import { RuleCard } from './components/RuleCard.js';
 import { ServerPanel } from './components/ServerPanel.js';
 import { newRule, removeAt, updateAt } from './model-ops.js';
+import { isOooRule } from './ooo.js';
 
 export function App() {
   const [model, setModel] = useState<SieveModel>({ rules: [] });
@@ -27,6 +29,20 @@ export function App() {
     setModel({ rules });
     setImporting(false);
     setLoaded(true);
+  };
+
+  // The out-of-office responder is the first rule of the recognized shape; it
+  // renders as the dedicated card and is skipped in the generic rule list.
+  const oooIndex = model.rules.findIndex(isOooRule);
+  const ruleCount = model.rules.length - (oooIndex >= 0 ? 1 : 0);
+
+  const setOoo = (r: Rule | null) => {
+    if (oooIndex >= 0) {
+      setRules(r ? updateAt(model.rules, oooIndex, r) : removeAt(model.rules, oooIndex));
+    } else if (r) {
+      // New responder goes first, so a later rule's `stop` can't silence it.
+      setRules([r, ...model.rules]);
+    }
   };
 
   return (
@@ -68,16 +84,20 @@ export function App() {
                 </div>
               )}
 
-              {model.rules.map((rule, i) => (
-                <RuleCard
-                  key={rule.id}
-                  rule={rule}
-                  onChange={(r) => setRules(updateAt(model.rules, i, r))}
-                  onRemove={() => setRules(removeAt(model.rules, i))}
-                />
-              ))}
+              <OutOfOffice rule={oooIndex >= 0 ? model.rules[oooIndex]! : null} onChange={setOoo} />
 
-              {model.rules.length === 0 && (
+              {model.rules.map((rule, i) =>
+                i === oooIndex ? null : (
+                  <RuleCard
+                    key={rule.id}
+                    rule={rule}
+                    onChange={(r) => setRules(updateAt(model.rules, i, r))}
+                    onRemove={() => setRules(removeAt(model.rules, i))}
+                  />
+                ),
+              )}
+
+              {ruleCount === 0 && (
                 <p class="empty">No rules yet. Add one to get started.</p>
               )}
 

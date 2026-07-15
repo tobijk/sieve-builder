@@ -23,6 +23,13 @@ export const ADDRESS_PARTS = ['all', 'localpart', 'domain'] as const;
 /** Body transforms (RFC 5173). */
 export const BODY_TRANSFORMS = ['raw', 'text', 'content'] as const;
 
+/**
+ * Date-parts for the currentdate test (RFC 5260). Only the calendar date
+ * ("YYYY-MM-DD", which also compares correctly as a plain string) is in the
+ * subset — enough for scheduling, e.g. an out-of-office window.
+ */
+export const DATE_PARTS = ['date'] as const;
+
 /** Supported action command names. */
 export const ACTION_TYPES = [
   'fileinto',

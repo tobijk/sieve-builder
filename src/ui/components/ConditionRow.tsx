@@ -80,6 +80,14 @@ export function ConditionRow({ test, onChange, onRemove, canRemove }: Props) {
           />
           <span class="unit">MB</span>
         </span>
+      ) : test.type === 'currentdate' ? (
+        <input
+          class="control"
+          type="date"
+          required
+          value={textValue(test)}
+          onInput={(e) => onChange(withText(test, e.currentTarget.value))}
+        />
       ) : (
         <input
           class="control grow"

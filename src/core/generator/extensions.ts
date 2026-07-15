@@ -22,6 +22,9 @@ function testExtensions(test: Test, add: (ext: string) => void): void {
     case 'body':
       add('body');
       break;
+    case 'currentdate':
+      add('date');
+      break;
   }
   if ('match' in test) {
     if (test.match === 'regex') add('regex');
