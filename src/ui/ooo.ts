@@ -23,6 +23,23 @@ export interface OooSettings {
 
 export const DEFAULT_DAYS = 7;
 
+/**
+ * Tracking identity for the responder (RFC 5230 :handle). Without an
+ * explicit handle the server derives one from the reply text, so every
+ * edit re-answers senders who already got a reply. Pinning the handle to
+ * the window's start date inverts that into the sensible semantics: each
+ * vacation period is its own announcement (recycled text still answers
+ * afresh next time), while edits within a period stay quiet. With no
+ * start date there is no period boundary, so a fixed handle is used.
+ * A handle not matching this shape is user-managed and left alone.
+ */
+const AUTO_HANDLE = /^ooo(-\d{4}-\d{2}-\d{2})?$/;
+
+function oooHandle(prev: string | undefined, from: string): string {
+  if (prev !== undefined && !AUTO_HANDLE.test(prev)) return prev;
+  return from ? `ooo-${from}` : 'ooo';
+}
+
 /** Reads a window bound (`currentdate value ge/le "date" [d]`), else null. */
 function windowBound(node: ConditionNode): { relation: 'ge' | 'le'; value: string } | null {
   if (
@@ -73,9 +90,10 @@ export function readOoo(rule: Rule | null): OooSettings {
 
 /**
  * Builds the rule for the card's state, preserving the previous rule's
- * identity and any vacation extras (:addresses, :handle, :from) the card
- * doesn't edit. Returns null — "remove the rule" — when the responder is off
- * and empty, so an untouched card leaves no trace in the script.
+ * identity and any vacation extras (:addresses, :from, a custom :handle)
+ * the card doesn't edit. Returns null — "remove the rule" — when the
+ * responder is off and empty, so an untouched card leaves no trace in the
+ * script.
  */
 export function writeOoo(prev: Rule | null, s: OooSettings): Rule | null {
   const blank = !s.message.trim() && !s.subject.trim() && !s.from && !s.until;
@@ -98,7 +116,7 @@ export function writeOoo(prev: Rule | null, s: OooSettings): Rule | null {
     ...(s.subject.trim() !== '' ? { subject: s.subject } : {}),
     ...(prevVacation?.from !== undefined ? { from: prevVacation.from } : {}),
     ...(prevVacation?.addresses ? { addresses: prevVacation.addresses } : {}),
-    ...(prevVacation?.handle !== undefined ? { handle: prevVacation.handle } : {}),
+    handle: oooHandle(prevVacation?.handle, s.from),
   };
 
   return {

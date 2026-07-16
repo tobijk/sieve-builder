@@ -59,14 +59,30 @@ test('vacation extras the card does not edit are preserved', () => {
   const prev = writeOoo(null, { ...fresh(), enabled: true, message: 'Away.' })!;
   const vacation = prev.actions[0]!;
   assert.ok(vacation.type === 'vacation');
-  prev.actions[0] = { ...vacation, addresses: ['me@example.com'], handle: 'ooo' };
+  prev.actions[0] = { ...vacation, addresses: ['me@example.com'], handle: 'my-custom' };
 
   const next = writeOoo(prev, { ...readOoo(prev), message: 'Changed.' })!;
   const v = next.actions[0]!;
   assert.ok(v.type === 'vacation');
   assert.deepEqual(v.addresses, ['me@example.com']);
-  assert.equal(v.handle, 'ooo');
+  assert.equal(v.handle, 'my-custom'); // user-managed handle is left alone
   assert.equal(v.reason, 'Changed.');
+});
+
+test('the tracking handle pins each date window as its own announcement', () => {
+  // No window: fixed handle, so message edits do not re-answer senders.
+  const manual = writeOoo(null, { ...fresh(), enabled: true, message: 'Away.' })!;
+  assert.equal(manual.actions[0]!.type === 'vacation' && manual.actions[0]!.handle, 'ooo');
+
+  // A window pins the handle to its start date...
+  const windowed = writeOoo(manual, { ...readOoo(manual), from: '2026-07-20' })!;
+  const v1 = windowed.actions[0]!;
+  assert.equal(v1.type === 'vacation' && v1.handle, 'ooo-2026-07-20');
+
+  // ...and moving the window mints a new announcement, same text or not.
+  const moved = writeOoo(windowed, { ...readOoo(windowed), from: '2026-12-01' })!;
+  const v2 = moved.actions[0]!;
+  assert.equal(v2.type === 'vacation' && v2.handle, 'ooo-2026-12-01');
 });
 
 test('days are clamped to a sane minimum', () => {
