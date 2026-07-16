@@ -6,7 +6,7 @@ access is necessary, how to reproduce the shipped build, and how user data is
 handled. A short version suitable for the "Notes to Reviewers" field is at the
 bottom.
 
-- **Add-on:** Sieve Builder (`sieve-builder@tobijk`), version 0.2.0
+- **Add-on:** Sieve Builder (`sieve-builder@tobijk`), version 0.2.1
 - **Min Thunderbird:** 128.0
 - **License:** MIT (all code original; no third-party add-on code is included)
 - **Source:** this repository

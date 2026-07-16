@@ -26,14 +26,18 @@ export function OutOfOffice({ rule, onChange }: Props) {
 
         <div class="ooo-title">
           <span class="ooo-name">Out of office</span>
-          <span class="ooo-sub">Automatically answer mail while you’re away</span>
+          <span class="ooo-sub">
+            {rule !== null && !s.enabled
+              ? 'Off — your message is kept'
+              : 'Automatically answer mail while you’re away'}
+          </span>
         </div>
 
         {s.enabled && <span class="badge">Active</span>}
       </header>
 
-      {/* Slim until it exists: the switch creates the rule and reveals the form. */}
-      {(s.enabled || rule !== null) && (
+      {/* Slim while off: the switch reveals the form (and creates the rule). */}
+      {s.enabled && (
       <div class="ooo-body">
         <label class="ooo-field">
           <span class="label">Subject</span>
